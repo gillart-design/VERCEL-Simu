@@ -1149,8 +1149,7 @@ def compute_drawdown_pct(snapshots: pd.DataFrame) -> float:
 # =========================
 # Risk checks
 # =========================
-def check_trade_risk(if holdings is None or holdings.empty or "symbol" not in holdings.columns:
-    holdings = pd.DataFrame(columns=["symbol", "zone", "secteur", "valeur_marche"])
+def check_trade_risk(
     side: str,
     symbol: str,
     quantity: float,
@@ -1165,11 +1164,12 @@ def check_trade_risk(if holdings is None or holdings.empty or "symbol" not in ho
     max_zone_pct: float,
 ) -> list[str]:
     errors: list[str] = []
+
     # --- HARDENING: holdings peut être vide / sans colonnes au 1er trade ---
     if holdings is None or not isinstance(holdings, pd.DataFrame):
         holdings = pd.DataFrame()
 
-    # Normalisation de noms si jamais tu affiches une version "renommée"
+    # Normalisation si jamais tu as un DF affichage avec colonnes renommées
     rename_map = {}
     if "Ticker" in holdings.columns and "symbol" not in holdings.columns:
         rename_map["Ticker"] = "symbol"
@@ -1182,27 +1182,32 @@ def check_trade_risk(if holdings is None or holdings.empty or "symbol" not in ho
     required_cols = ["symbol", "zone", "secteur", "valeur_marche"]
     for c in required_cols:
         if c not in holdings.columns:
-            holdings[c] = pd.Series(dtype="object" if c in {"symbol","zone","secteur"} else "float64")
+            holdings[c] = pd.Series(dtype="object" if c in {"symbol", "zone", "secteur"} else "float64")
 
     # Types propres
     holdings["symbol"] = holdings["symbol"].astype(str).str.upper()
     holdings["valeur_marche"] = pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0)
-    side = side.upper()
 
+    # --- RISK CHECKS ---
     buy_cost_base = (quantity * price + fees) * fx_to_base
     sell_proceeds_base = max(quantity * price - fees, 0.0) * fx_to_base
 
     current_value = float(holdings["valeur_marche"].sum()) if not holdings.empty else 0.0
-    total_before = cash + current_value
+    total_after = cash + current_value
 
-    if side == "BUY":
+    if side.upper() == "BUY":
         if cash < buy_cost_base:
-            errors.append(f"Cash insuffisant: requis {money(buy_cost_base, base_currency)}, dispo {money(cash, base_currency)}.")
+            errors.append(
+                f"Cash insuffisant: requis {money(buy_cost_base, base_currency)}, disponible {money(cash, base_currency)}."
+            )
+        projected_total = total_after
         symbol_value = float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) + buy_cost_base
-        projected_total = total_before  # achat n'augmente pas total, redistribue cash->invest
     else:
-        symbol_value = max(0.0, float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) - sell_proceeds_base)
-        projected_total = total_before
+        projected_total = total_after
+        symbol_value = max(
+            0.0,
+            float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) - sell_proceeds_base,
+        )
 
     if projected_total <= 0:
         return errors
@@ -1211,26 +1216,44 @@ def check_trade_risk(if holdings is None or holdings.empty or "symbol" not in ho
     if line_pct > max_line_pct:
         errors.append(f"Limite ligne dépassée ({line_pct:.1f}% > {max_line_pct:.1f}%).")
 
-    # simule allocation
+    # Construire un "tmp" holdings projeté après trade pour check sector/zone
     if not holdings.empty:
         tmp = holdings.copy()
         if symbol in tmp["symbol"].values:
             idx = tmp.index[tmp["symbol"] == symbol][0]
             current = float(tmp.loc[idx, "valeur_marche"])
-            tmp.loc[idx, "valeur_marche"] = current + (buy_cost_base if side == "BUY" else -sell_proceeds_base)
+            tmp.loc[idx, "valeur_marche"] = current + (buy_cost_base if side.upper() == "BUY" else -sell_proceeds_base)
             tmp.loc[idx, "valeur_marche"] = max(float(tmp.loc[idx, "valeur_marche"]), 0.0)
         else:
             meta = CATALOG_BY_SYMBOL.get(symbol, {})
             tmp = pd.concat(
                 [
                     tmp,
-                    pd.DataFrame([{"symbol": symbol, "zone": meta.get("zone", "USA"), "secteur": meta.get("sector", "Non classé"), "valeur_marche": buy_cost_base}]),
+                    pd.DataFrame(
+                        [
+                            {
+                                "symbol": symbol,
+                                "zone": meta.get("zone", "USA"),
+                                "secteur": meta.get("sector", "Non classé"),
+                                "valeur_marche": buy_cost_base if side.upper() == "BUY" else 0.0,
+                            }
+                        ]
+                    ),
                 ],
                 ignore_index=True,
             )
     else:
         meta = CATALOG_BY_SYMBOL.get(symbol, {})
-        tmp = pd.DataFrame([{"symbol": symbol, "zone": meta.get("zone", "USA"), "secteur": meta.get("sector", "Non classé"), "valeur_marche": buy_cost_base}])
+        tmp = pd.DataFrame(
+            [
+                {
+                    "symbol": symbol,
+                    "zone": meta.get("zone", "USA"),
+                    "secteur": meta.get("sector", "Non classé"),
+                    "valeur_marche": buy_cost_base if side.upper() == "BUY" else 0.0,
+                }
+            ]
+        )
 
     tmp = tmp[tmp["valeur_marche"] > 0]
     if not tmp.empty:
