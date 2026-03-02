@@ -22,7 +22,32 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import jwt
+import streamlit as st
 
+def authenticate_user():
+    """Vérifie le token JWT envoyé par Base44"""
+    token = st.query_params.get("token")
+    
+    if not token:
+        st.error("🔒 Accès refusé. Veuillez accéder au simulateur depuis LibertyCapital.")
+        st.stop()
+    
+    try:
+        secret = st.secrets["SHARED_SECRET"]
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        return payload  # contient: email, name, iat, exp
+    except jwt.ExpiredSignatureError:
+        st.error("⏰ Session expirée. Retournez sur LibertyCapital et relancez le simulateur.")
+        st.stop()
+    except jwt.InvalidTokenError:
+        st.error("🔒 Token invalide. Accès non autorisé.")
+        st.stop()
+
+# Au tout début de votre app :
+user = authenticate_user()
+st.session_state["user_email"] = user["email"]
+st.session_state["user_name"] = user["name"]
 from portfolio_tool.data import get_market_clock
 
 try:
