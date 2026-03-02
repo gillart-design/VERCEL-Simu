@@ -512,10 +512,10 @@ def load_transactions(conn: sqlite3.Connection) -> pd.DataFrame:
     )
     if df.empty:
         return pd.DataFrame(
-            columns=["id","executed_at_utc","symbol","side","quantity","price","fees","currency","fx_to_base","strategy_tag","exchange","note"]
+            columns=["id", "executed_at_utc", "symbol", "side", "quantity", "price", "fees", "currency", "fx_to_base", "strategy_tag", "exchange", "note"]
         )
-    df["symbol"] = df["symbol"].str.upper()
-    df["currency"] = df["currency"].fillna(DEFAULT_BASE_CURRENCY).str.upper()
+    df["symbol"] = df["symbol"].astype(str).str.upper()
+    df["currency"] = df["currency"].fillna(DEFAULT_BASE_CURRENCY).astype(str).str.upper()
     df["fx_to_base"] = pd.to_numeric(df["fx_to_base"], errors="coerce").fillna(1.0)
     return df
 
@@ -531,7 +531,7 @@ def load_snapshots(conn: sqlite3.Connection) -> pd.DataFrame:
         parse_dates=["captured_at_utc"],
     )
     if df.empty:
-        return pd.DataFrame(columns=["id","captured_at_utc","portfolio_value","cash","invested","pnl","pnl_pct","event_type","event_label"])
+        return pd.DataFrame(columns=["id", "captured_at_utc", "portfolio_value", "cash", "invested", "pnl", "pnl_pct", "event_type", "event_label"])
     return df
 
 
@@ -643,16 +643,17 @@ def compute_cash(initial_capital: float, transactions: pd.DataFrame) -> float:
         notional = float(tx.quantity) * float(tx.price)
         fees = float(tx.fees)
         fx_to_base = safe_float(getattr(tx, "fx_to_base", 1.0), 1.0)
+        fx = fx_to_base if fx_to_base > 0 else 1.0
         if str(tx.side).upper() == "BUY":
-            cash -= (notional + fees) * (fx_to_base if fx_to_base > 0 else 1.0)
+            cash -= (notional + fees) * fx
         else:
-            cash += max(notional - fees, 0.0) * (fx_to_base if fx_to_base > 0 else 1.0)
+            cash += max(notional - fees, 0.0) * fx
     return float(cash)
 
 
 def compute_positions(transactions: pd.DataFrame, accounting_method: str = DEFAULT_ACCOUNTING_METHOD) -> pd.DataFrame:
     if transactions.empty:
-        return pd.DataFrame(columns=["symbol","quantity","avg_cost","book_value","realized_pnl","realized_pnl_base","currency","avg_fx_to_base"])
+        return pd.DataFrame(columns=["symbol", "quantity", "avg_cost", "book_value", "realized_pnl", "realized_pnl_base", "currency", "avg_fx_to_base"])
 
     method = (accounting_method or DEFAULT_ACCOUNTING_METHOD).strip().lower()
     if method not in {"fifo", "lifo", "average"}:
@@ -749,13 +750,13 @@ def compute_positions(transactions: pd.DataFrame, accounting_method: str = DEFAU
                 "realized_pnl": float(ledger["realized_pnl"]),
                 "realized_pnl_base": float(ledger["realized_pnl_base"]),
                 "currency": ledger["currency"],
-                "avg_fx_to_base": avg_fx,
+                "avg_fx_to_base": float(avg_fx if avg_fx > 0 else 1.0),
             }
         )
 
     df = pd.DataFrame(rows)
     if df.empty:
-        return pd.DataFrame(columns=["symbol","quantity","avg_cost","book_value","realized_pnl","realized_pnl_base","currency","avg_fx_to_base"])
+        return pd.DataFrame(columns=["symbol", "quantity", "avg_cost", "book_value", "realized_pnl", "realized_pnl_base", "currency", "avg_fx_to_base"])
     return df.sort_values("symbol").reset_index(drop=True)
 
 
@@ -795,8 +796,19 @@ def fetch_quotes(symbols: tuple[str, ...]) -> pd.DataFrame:
 @st.cache_data(ttl=5, show_spinner=False)
 def fetch_realtime_quotes(symbols: tuple[str, ...]) -> pd.DataFrame:
     columns = [
-        "symbol","last","previous","change_pct","quote_time_utc","market_state","currency","source",
-        "regular_price","pre_price","post_price","official_close","price_context",
+        "symbol",
+        "last",
+        "previous",
+        "change_pct",
+        "quote_time_utc",
+        "market_state",
+        "currency",
+        "source",
+        "regular_price",
+        "pre_price",
+        "post_price",
+        "official_close",
+        "price_context",
     ]
     cleaned = tuple(dict.fromkeys([s.strip().upper() for s in symbols if s.strip()]))
     if not cleaned:
@@ -1029,7 +1041,7 @@ def opportunities_and_vigilance(metrics: pd.DataFrame) -> tuple[pd.DataFrame, pd
         return metrics, metrics
     clean = metrics.dropna(subset=["ret_1m", "vol_3m"]).copy()
     opportunities = clean[(clean["ret_1m"] > 0.04) & (clean["vol_3m"] < 0.35)].sort_values("ret_1m", ascending=False).head(8)
-    vigilance = clean[(clean["ret_1m"] < -0.04) | (clean["vol_3m"] > 0.45)].sort_values(["ret_1m","vol_3m"], ascending=[True, False]).head(8)
+    vigilance = clean[(clean["ret_1m"] < -0.04) | (clean["vol_3m"] > 0.45)].sort_values(["ret_1m", "vol_3m"], ascending=[True, False]).head(8)
     return opportunities, vigilance
 
 
@@ -1048,7 +1060,7 @@ def compute_geopolitical_risk(news: list[dict[str, str]]) -> tuple[str, int]:
 
 
 # =========================
-# Portfolio state
+# Portfolio state (ROBUST)
 # =========================
 def compute_portfolio_state(
     initial_capital: float,
@@ -1059,34 +1071,166 @@ def compute_portfolio_state(
     base_currency: str,
     fx_rates: dict[str, float],
 ) -> tuple[pd.DataFrame, dict[str, float]]:
+    """
+    Construit un holdings DataFrame "UI-ready" + state cohérent.
+    - holdings contient: symbol, nom, zone, secteur, type, quantite, prix_moyen, cours, devise, fx_to_base,
+      valeur_marche_devise, valeur_marche, pnl_latent, pnl_realise, dividend_yield
+    - state contient: cash / invested (= valeur de marché base) / portfolio_value / pnl / pnl_pct / dividends estimés.
+    """
 
-    # --- Sécurisation si positions vide ---
-    if positions is None or positions.empty:
-        holdings = pd.DataFrame(columns=[
-            "symbol", "nom", "zone", "secteur", "type",
-            "quantity", "prix_moyen", "cours", "devise",
-            "fx_to_base", "valeur_marche", "valeur_marche_devise",
-            "pnl_latent", "pnl_realise", "dividend_yield"
-        ])
-    else:
-        holdings = positions.copy()
+    base_currency = (base_currency or DEFAULT_BASE_CURRENCY).upper()
 
-    if holdings is None:
-        holdings = pd.DataFrame()
+    # Maps quotes
+    quote_map: dict[str, dict] = {}
+    if quotes is not None and isinstance(quotes, pd.DataFrame) and not quotes.empty and "symbol" in quotes.columns:
+        q = quotes.copy()
+        q["symbol"] = q["symbol"].astype(str).str.upper()
+        quote_map = q.set_index("symbol").to_dict(orient="index")
 
-    # Garantir colonnes minimales
-    required_cols = ["symbol", "quantity", "avg_cost"]
-    for col in required_cols:
-        if col not in holdings.columns:
-            holdings[col] = 0.0
+    # positions may be empty
+    pos = positions.copy() if isinstance(positions, pd.DataFrame) else pd.DataFrame()
+    if pos.empty:
+        holdings = pd.DataFrame(
+            columns=[
+                "symbol",
+                "nom",
+                "zone",
+                "secteur",
+                "type",
+                "quantite",
+                "prix_moyen",
+                "cours",
+                "devise",
+                "fx_to_base",
+                "valeur_marche_devise",
+                "valeur_marche",
+                "pnl_latent",
+                "pnl_realise",
+                "dividend_yield",
+            ]
+        )
+        cash = compute_cash(initial_capital, transactions)
+        state = {
+            "initial_capital": float(initial_capital),
+            "cash": float(cash),
+            "invested": 0.0,
+            "portfolio_value": float(cash),
+            "pnl": float(cash - initial_capital),
+            "pnl_pct": float(((cash - initial_capital) / initial_capital) * 100) if initial_capital else 0.0,
+            "annual_dividends": 0.0,
+            "monthly_dividends": 0.0,
+            "base_currency": base_currency,
+        }
+        return holdings, state
 
-    invested = float(holdings["quantity"].sum()) if not holdings.empty else 0.0
+    # Normalize positions columns
+    pos["symbol"] = pos["symbol"].astype(str).str.upper()
+    pos["quantity"] = pd.to_numeric(pos.get("quantity", 0.0), errors="coerce").fillna(0.0)
+    pos["avg_cost"] = pd.to_numeric(pos.get("avg_cost", 0.0), errors="coerce").fillna(0.0)
+    pos["realized_pnl_base"] = pd.to_numeric(pos.get("realized_pnl_base", 0.0), errors="coerce").fillna(0.0)
+    pos["currency"] = pos.get("currency", base_currency).fillna(base_currency).astype(str).str.upper()
+    pos["avg_fx_to_base"] = pd.to_numeric(pos.get("avg_fx_to_base", 1.0), errors="coerce").fillna(1.0)
 
+    rows: list[dict] = []
+    for r in pos.itertuples(index=False):
+        symbol = str(r.symbol).upper()
+        qty = float(getattr(r, "quantity", 0.0))
+        if qty <= 0:
+            continue
+
+        q = quote_map.get(symbol, {})  # may be empty
+        q_currency = infer_currency(symbol, str(q.get("currency", "")), base_currency)
+        last = safe_float(q.get("last", np.nan), np.nan)
+
+        profile = profiles.get(symbol, {}) if profiles else {}
+        base_meta = CATALOG_BY_SYMBOL.get(symbol, {})
+
+        name = str(profile.get("name") or base_meta.get("name") or symbol)
+        sector = str(profile.get("sector") or base_meta.get("sector") or "Non classé")
+        zone = str(profile.get("zone") or base_meta.get("zone") or "USA")
+        asset_type = str(profile.get("asset_type") or base_meta.get("asset_type") or "Action")
+        div_yield = safe_float(profile.get("dividend_yield", 0.0), 0.0)
+
+        # Fx to base
+        fx_to_base = safe_float(fx_rates.get(q_currency, np.nan), np.nan)
+        if np.isnan(fx_to_base) or fx_to_base <= 0:
+            # fallback: average historical fx stored on lots, else 1 if same currency
+            fx_to_base = safe_float(getattr(r, "avg_fx_to_base", 1.0), 1.0)
+            if (np.isnan(fx_to_base) or fx_to_base <= 0) and q_currency == base_currency:
+                fx_to_base = 1.0
+            if np.isnan(fx_to_base) or fx_to_base <= 0:
+                fx_to_base = 1.0
+
+        avg_cost = float(getattr(r, "avg_cost", 0.0))
+
+        # Market value
+        if np.isnan(last) or last <= 0:
+            # if no quote, approximate with avg_cost
+            last = avg_cost if avg_cost > 0 else 0.0
+
+        market_value_quote = float(qty * last)
+        market_value_base = float(market_value_quote * fx_to_base)
+
+        # Book value base uses avg_cost in quote currency * fx_to_base (approx)
+        book_value_base = float(qty * avg_cost * fx_to_base)
+        unrealized_base = float(market_value_base - book_value_base)
+        realized_base = float(getattr(r, "realized_pnl_base", 0.0))
+
+        rows.append(
+            {
+                "symbol": symbol,
+                "nom": name,
+                "zone": zone,
+                "secteur": sector,
+                "type": asset_type,
+                "quantite": float(qty),
+                "prix_moyen": float(avg_cost),
+                "cours": float(last),
+                "devise": q_currency,
+                "fx_to_base": float(fx_to_base),
+                "valeur_marche_devise": float(market_value_quote),
+                "valeur_marche": float(market_value_base),
+                "pnl_latent": float(unrealized_base),
+                "pnl_realise": float(realized_base),
+                "dividend_yield": float(div_yield),
+            }
+        )
+
+    holdings = pd.DataFrame(rows)
+    if holdings.empty:
+        holdings = pd.DataFrame(
+            columns=[
+                "symbol",
+                "nom",
+                "zone",
+                "secteur",
+                "type",
+                "quantite",
+                "prix_moyen",
+                "cours",
+                "devise",
+                "fx_to_base",
+                "valeur_marche_devise",
+                "valeur_marche",
+                "pnl_latent",
+                "pnl_realise",
+                "dividend_yield",
+            ]
+        )
+
+    invested = float(pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0).sum()) if not holdings.empty else 0.0
     cash = compute_cash(initial_capital, transactions)
     portfolio_value = float(cash + invested)
 
     pnl = float(portfolio_value - initial_capital)
     pnl_pct = float((pnl / initial_capital) * 100) if initial_capital else 0.0
+
+    # Dividends estimate: sum(market_value_base * dividend_yield)
+    # dividend_yield from yfinance is typically decimal (e.g. 0.02 for 2%).
+    annual_dividends = 0.0
+    if not holdings.empty:
+        annual_dividends = float((pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0) * pd.to_numeric(holdings["dividend_yield"], errors="coerce").fillna(0.0)).sum())
+    monthly_dividends = float(annual_dividends / 12.0) if annual_dividends else 0.0
 
     state = {
         "initial_capital": float(initial_capital),
@@ -1095,9 +1239,9 @@ def compute_portfolio_state(
         "portfolio_value": float(portfolio_value),
         "pnl": float(pnl),
         "pnl_pct": float(pnl_pct),
-        "annual_dividends": 0.0,
-        "monthly_dividends": 0.0,
-        "base_currency": base_currency.upper(),
+        "annual_dividends": float(annual_dividends),
+        "monthly_dividends": float(monthly_dividends),
+        "base_currency": base_currency,
     }
 
     return holdings, state
@@ -1133,97 +1277,91 @@ def check_trade_risk(
 ) -> list[str]:
     errors: list[str] = []
 
-    # --- HARDENING: holdings peut être vide / sans colonnes au 1er trade ---
-    if holdings is None or not isinstance(holdings, pd.DataFrame):
-        holdings = pd.DataFrame()
+    side = (side or "").upper().strip()
+    symbol = (symbol or "").upper().strip()
+    base_currency = (base_currency or DEFAULT_BASE_CURRENCY).upper()
 
-    # Normalisation si jamais tu as un DF affichage avec colonnes renommées
-    rename_map = {}
-    if "Ticker" in holdings.columns and "symbol" not in holdings.columns:
-        rename_map["Ticker"] = "symbol"
-    if "Valeur marché" in holdings.columns and "valeur_marche" not in holdings.columns:
-        rename_map["Valeur marché"] = "valeur_marche"
-    if rename_map:
-        holdings = holdings.rename(columns=rename_map)
+    if quantity <= 0 or price <= 0:
+        return ["Quantité et prix doivent être > 0."]
 
-    # Garantir colonnes minimales attendues
-    required_cols = ["symbol", "zone", "secteur", "valeur_marche"]
-    for c in required_cols:
-        if c not in holdings.columns:
-            holdings[c] = pd.Series(dtype="object" if c in {"symbol", "zone", "secteur"} else "float64")
+    fx = float(fx_to_base) if (fx_to_base and fx_to_base > 0) else 1.0
 
-    # Types propres
+    # holdings must be UI-ready (computed by compute_portfolio_state)
+    if holdings is None or not isinstance(holdings, pd.DataFrame) or holdings.empty:
+        holdings = pd.DataFrame(columns=["symbol", "zone", "secteur", "valeur_marche", "quantite"])
+
+    # Ensure needed cols
+    for col in ["symbol", "zone", "secteur", "valeur_marche", "quantite"]:
+        if col not in holdings.columns:
+            holdings[col] = 0.0 if col in {"valeur_marche", "quantite"} else ""
+
+    holdings = holdings.copy()
     holdings["symbol"] = holdings["symbol"].astype(str).str.upper()
     holdings["valeur_marche"] = pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0)
+    holdings["quantite"] = pd.to_numeric(holdings["quantite"], errors="coerce").fillna(0.0)
 
-    # --- RISK CHECKS ---
-    buy_cost_base = (quantity * price + fees) * fx_to_base
-    sell_proceeds_base = max(quantity * price - fees, 0.0) * fx_to_base
+    # Values in base currency for the trade
+    notional_base = float(quantity * price * fx)  # market impact in base
+    buy_cost_base = float((quantity * price + fees) * fx)
+    sell_proceeds_base = float(max(quantity * price - fees, 0.0) * fx)
 
-    current_value = float(holdings["valeur_marche"].sum()) if not holdings.empty else 0.0
-    total_after = cash + current_value
+    current_invested = float(holdings["valeur_marche"].sum()) if not holdings.empty else 0.0
+    current_portfolio_value = float(cash + current_invested)
 
-    if side.upper() == "BUY":
-        if cash < buy_cost_base:
-            errors.append(
-                f"Cash insuffisant: requis {money(buy_cost_base, base_currency)}, disponible {money(cash, base_currency)}."
-            )
-        projected_total = total_after
-        symbol_value = float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) + buy_cost_base
+    if side == "BUY":
+        if cash < buy_cost_base - 1e-9:
+            errors.append(f"Cash insuffisant: requis {money(buy_cost_base, base_currency)}, disponible {money(cash, base_currency)}.")
+        projected_cash = float(cash - buy_cost_base)
+        projected_invested = float(current_invested + notional_base)
+    elif side == "SELL":
+        projected_cash = float(cash + sell_proceeds_base)
+        projected_invested = float(max(current_invested - notional_base, 0.0))
     else:
-        projected_total = total_after
-        symbol_value = max(
-            0.0,
-            float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) - sell_proceeds_base,
-        )
+        return ["Side invalide (BUY/SELL)."]
 
+    projected_total = float(projected_cash + projected_invested)
     if projected_total <= 0:
         return errors
 
-    line_pct = (symbol_value / projected_total) * 100
+    # Line concentration (approximate by market value)
+    existing_line_value = float(holdings.loc[holdings["symbol"] == symbol, "valeur_marche"].sum()) if not holdings.empty else 0.0
+    if side == "BUY":
+        symbol_value_after = existing_line_value + notional_base
+    else:
+        symbol_value_after = max(existing_line_value - notional_base, 0.0)
+
+    line_pct = (symbol_value_after / projected_total) * 100
     if line_pct > max_line_pct:
         errors.append(f"Limite ligne dépassée ({line_pct:.1f}% > {max_line_pct:.1f}%).")
 
-    # Construire un "tmp" holdings projeté après trade pour check sector/zone
-    if not holdings.empty:
-        tmp = holdings.copy()
-        if symbol in tmp["symbol"].values:
-            idx = tmp.index[tmp["symbol"] == symbol][0]
-            current = float(tmp.loc[idx, "valeur_marche"])
-            tmp.loc[idx, "valeur_marche"] = current + (buy_cost_base if side.upper() == "BUY" else -sell_proceeds_base)
-            tmp.loc[idx, "valeur_marche"] = max(float(tmp.loc[idx, "valeur_marche"]), 0.0)
-        else:
-            meta = CATALOG_BY_SYMBOL.get(symbol, {})
-            tmp = pd.concat(
-                [
-                    tmp,
-                    pd.DataFrame(
-                        [
-                            {
-                                "symbol": symbol,
-                                "zone": meta.get("zone", "USA"),
-                                "secteur": meta.get("sector", "Non classé"),
-                                "valeur_marche": buy_cost_base if side.upper() == "BUY" else 0.0,
-                            }
-                        ]
-                    ),
-                ],
-                ignore_index=True,
-            )
+    # Sector / zone concentration using projected holdings
+    tmp = holdings.copy()
+
+    if symbol in tmp["symbol"].values:
+        idx = tmp.index[tmp["symbol"] == symbol][0]
+        tmp.loc[idx, "valeur_marche"] = symbol_value_after
     else:
         meta = CATALOG_BY_SYMBOL.get(symbol, {})
-        tmp = pd.DataFrame(
+        tmp = pd.concat(
             [
-                {
-                    "symbol": symbol,
-                    "zone": meta.get("zone", "USA"),
-                    "secteur": meta.get("sector", "Non classé"),
-                    "valeur_marche": buy_cost_base if side.upper() == "BUY" else 0.0,
-                }
-            ]
+                tmp,
+                pd.DataFrame(
+                    [
+                        {
+                            "symbol": symbol,
+                            "zone": meta.get("zone", "USA"),
+                            "secteur": meta.get("sector", "Non classé"),
+                            "valeur_marche": symbol_value_after if side == "BUY" else 0.0,
+                            "quantite": 0.0,
+                        }
+                    ]
+                ),
+            ],
+            ignore_index=True,
         )
 
-    tmp = tmp[tmp["valeur_marche"] > 0]
+    tmp["valeur_marche"] = pd.to_numeric(tmp["valeur_marche"], errors="coerce").fillna(0.0)
+    tmp = tmp[tmp["valeur_marche"] > 0].copy()
     if not tmp.empty:
         sector_max = float(tmp.groupby("secteur")["valeur_marche"].sum().max() / projected_total * 100)
         zone_max = float(tmp.groupby("zone")["valeur_marche"].sum().max() / projected_total * 100)
@@ -1380,11 +1518,13 @@ def evaluate_alerts(
         if insert_alert(conn, "pnl_gain", "INFO", "Objectif gain atteint", f"Performance portefeuille: {pnl_pct:.2f}%"):
             fired.append("Objectif gain atteint")
 
-    if not holdings.empty and safe_float(state.get("portfolio_value", 0.0), 0.0) > 0:
+    portfolio_value = safe_float(state.get("portfolio_value", 0.0), 0.0)
+    if holdings is not None and isinstance(holdings, pd.DataFrame) and not holdings.empty and portfolio_value > 0:
         if "valeur_marche" in holdings.columns:
-    top = float(holdings["valeur_marche"].max() / state["portfolio_value"] * 100)
-else:
-    top = 0.0
+            top = float(pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0).max() / portfolio_value * 100)
+        else:
+            top = 0.0
+
         if top > max_line_pct:
             if insert_alert(conn, "concentration_line", "MEDIUM", "Concentration excessive", f"Ligne max: {top:.2f}% (> {max_line_pct:.2f}%)."):
                 fired.append("Concentration excessive")
@@ -1509,6 +1649,7 @@ def openai_ai_assistant(prompt: str) -> str | None:
         return None
     try:
         from openai import OpenAI  # type: ignore
+
         client = OpenAI(api_key=api_key)
         response = client.responses.create(
             model="gpt-4.1-mini",
@@ -1715,12 +1856,11 @@ def create_allocation_chart(data: pd.DataFrame, label_col: str, value_col: str, 
 # MAIN
 # =========================
 def main() -> None:
+    # ✅ MUST be first Streamlit call
     st.set_page_config(page_title=APP_TITLE, page_icon="📈", layout="wide")
+
     setup_logger()
     render_css()
-
-    # ✅ DOIT ÊTRE LE PREMIER CALL streamlit !
-    st.set_page_config(page_title=APP_TITLE, page_icon="📈", layout="wide")
 
     # Auth Base44
     user = authenticate_user()
@@ -1729,8 +1869,6 @@ def main() -> None:
 
     # DB per user
     conn = get_connection_for_user(st.session_state["user_email"])
-
-    render_css()
 
     universe_df = pd.DataFrame(ASSET_UNIVERSE)
     universe_symbols = sorted(universe_df["symbol"].unique().tolist())
@@ -1748,7 +1886,9 @@ def main() -> None:
     if "refresh_seconds" not in st.session_state:
         st.session_state["refresh_seconds"] = get_setting_int(conn, "refresh_seconds", DEFAULT_REFRESH_SECONDS)
     if "realtime_symbols" not in st.session_state:
-        st.session_state["realtime_symbols"] = parse_symbols_csv(get_setting(conn, "realtime_symbols", ",".join(DEFAULT_REALTIME_SYMBOLS)), set(universe_symbols)) or DEFAULT_REALTIME_SYMBOLS
+        st.session_state["realtime_symbols"] = (
+            parse_symbols_csv(get_setting(conn, "realtime_symbols", ",".join(DEFAULT_REALTIME_SYMBOLS)), set(universe_symbols)) or DEFAULT_REALTIME_SYMBOLS
+        )
     if "live_mode" not in st.session_state:
         mode = get_setting(conn, "live_mode", DEFAULT_LIVE_MODE).strip().lower()
         st.session_state["live_mode"] = mode if mode in {"polling", "websocket"} else "polling"
@@ -1795,9 +1935,21 @@ def main() -> None:
         exchange = get_setting(conn, "exchange", DEFAULT_EXCHANGE)
 
         new_initial_capital = st.number_input("Capital initial (€)", min_value=0.0, value=float(initial_capital), step=1000.0)
-        new_exchange = st.selectbox("Exchange de référence", ["XNYS", "XPAR", "XHKG", "XTKS"], index=["XNYS","XPAR","XHKG","XTKS"].index(exchange) if exchange in {"XNYS","XPAR","XHKG","XTKS"} else 0)
-        base_currency = st.selectbox("Devise de valorisation", ["EUR", "USD", "GBP", "JPY", "CHF"], index=["EUR","USD","GBP","JPY","CHF"].index(st.session_state["base_currency"]) if st.session_state["base_currency"] in {"EUR","USD","GBP","JPY","CHF"} else 0)
-        accounting_method = st.selectbox("Méthode comptable", ["fifo","lifo","average"], index=["fifo","lifo","average"].index(st.session_state["accounting_method"]) if st.session_state["accounting_method"] in {"fifo","lifo","average"} else 0)
+        new_exchange = st.selectbox(
+            "Exchange de référence",
+            ["XNYS", "XPAR", "XHKG", "XTKS"],
+            index=["XNYS", "XPAR", "XHKG", "XTKS"].index(exchange) if exchange in {"XNYS", "XPAR", "XHKG", "XTKS"} else 0,
+        )
+        base_currency = st.selectbox(
+            "Devise de valorisation",
+            ["EUR", "USD", "GBP", "JPY", "CHF"],
+            index=["EUR", "USD", "GBP", "JPY", "CHF"].index(st.session_state["base_currency"]) if st.session_state["base_currency"] in {"EUR", "USD", "GBP", "JPY", "CHF"} else 0,
+        )
+        accounting_method = st.selectbox(
+            "Méthode comptable",
+            ["fifo", "lifo", "average"],
+            index=["fifo", "lifo", "average"].index(st.session_state["accounting_method"]) if st.session_state["accounting_method"] in {"fifo", "lifo", "average"} else 0,
+        )
 
         if st.button("Enregistrer la configuration", use_container_width=True):
             set_setting(conn, "initial_capital", str(new_initial_capital))
@@ -1811,7 +1963,7 @@ def main() -> None:
 
         st.subheader("Flux Temps Réel")
         live_enabled = st.toggle("Activer cotation live", value=st.session_state["live_enabled"])
-        live_mode_label = st.radio("Mode live", ["Polling REST (Yahoo)"], index=0)
+        _ = st.radio("Mode live", ["Polling REST (Yahoo)"], index=0)
         live_mode = "polling"
         refresh_seconds = st.slider("Fréquence rafraîchissement UI (sec)", min_value=5, max_value=60, value=int(st.session_state["refresh_seconds"]))
         realtime_symbols = st.multiselect("Actifs live", options=universe_symbols, default=[s for s in st.session_state["realtime_symbols"] if s in universe_symbols])
@@ -1893,7 +2045,7 @@ def main() -> None:
         initial_capital=initial_capital,
         transactions=transactions,
         positions=positions,
-        quotes=quotes if not quotes.empty else pd.DataFrame(columns=["symbol","last","currency"]),
+        quotes=quotes if not quotes.empty else pd.DataFrame(columns=["symbol", "last", "currency"]),
         profiles=profiles,
         base_currency=base_currency,
         fx_rates=fx_rates,
@@ -1955,9 +2107,13 @@ def main() -> None:
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            render_metric_card("Capital Total", money(state["portfolio_value"], state["base_currency"]),
-                               f"Départ: {money(state['initial_capital'], state['base_currency'])}",
-                               primary=True, badge=pct(state["pnl_pct"]))
+            render_metric_card(
+                "Capital Total",
+                money(state["portfolio_value"], state["base_currency"]),
+                f"Départ: {money(state['initial_capital'], state['base_currency'])}",
+                primary=True,
+                badge=pct(state["pnl_pct"]),
+            )
         with c2:
             cash_pct = (state["cash"] / state["portfolio_value"] * 100) if state["portfolio_value"] else 0.0
             render_metric_card("Disponible", money(state["cash"], state["base_currency"]), f"{cash_pct:.1f}% du capital")
@@ -1989,7 +2145,7 @@ def main() -> None:
 
         st.markdown("#### Exécuter une transaction")
         qmap = quotes.set_index("symbol").to_dict(orient="index") if not quotes.empty else {}
-        held_qty = holdings.set_index("symbol")["quantite"].to_dict() if not holdings.empty else {}
+        held_qty = holdings.set_index("symbol")["quantite"].to_dict() if not holdings.empty and "quantite" in holdings.columns else {}
         available_symbols = sorted(set(universe_df["symbol"].tolist() + list(held_qty.keys())))
 
         with st.form("trade_form"):
@@ -2074,7 +2230,22 @@ def main() -> None:
             st.info("Aucune position ouverte.")
         else:
             view = holdings[
-                ["symbol","nom","zone","secteur","type","quantite","prix_moyen","cours","devise","fx_to_base","valeur_marche_devise","valeur_marche","pnl_latent","pnl_realise"]
+                [
+                    "symbol",
+                    "nom",
+                    "zone",
+                    "secteur",
+                    "type",
+                    "quantite",
+                    "prix_moyen",
+                    "cours",
+                    "devise",
+                    "fx_to_base",
+                    "valeur_marche_devise",
+                    "valeur_marche",
+                    "pnl_latent",
+                    "pnl_realise",
+                ]
             ].copy()
             st.dataframe(view, use_container_width=True, hide_index=True)
 
@@ -2091,7 +2262,7 @@ def main() -> None:
         else:
             table = market_quotes.copy()
             table["variation_%"] = table["change_pct"].round(2)
-            st.dataframe(table[["symbol","last","previous","variation_%","market_state","price_context","currency","source"]], use_container_width=True, hide_index=True)
+            st.dataframe(table[["symbol", "last", "previous", "variation_%", "market_state", "price_context", "currency", "source"]], use_container_width=True, hide_index=True)
 
         metrics = fetch_signal_metrics(tuple(selected))
         opportunities, vigilance = opportunities_and_vigilance(metrics)
@@ -2134,9 +2305,9 @@ def main() -> None:
 
         bt1, bt2, bt3 = st.columns(3)
         with bt1:
-            bt_strategy = st.selectbox("Stratégie", ["buy_hold", "sma50"], format_func=lambda x: "Buy & Hold" if x=="buy_hold" else "SMA50")
+            bt_strategy = st.selectbox("Stratégie", ["buy_hold", "sma50"], format_func=lambda x: "Buy & Hold" if x == "buy_hold" else "SMA50")
         with bt2:
-            bt_start = st.date_input("Début", value=pd.Timestamp.now(tz="UTC").date() - pd.Timedelta(days=365*3))
+            bt_start = st.date_input("Début", value=pd.Timestamp.now(tz="UTC").date() - pd.Timedelta(days=365 * 3))
         with bt3:
             bt_end = st.date_input("Fin", value=pd.Timestamp.now(tz="UTC").date())
 
@@ -2178,7 +2349,7 @@ def main() -> None:
         if alerts_df.empty:
             st.caption("Aucune alerte.")
         else:
-            st.dataframe(alerts_df[["created_at_utc","severity","title","message","delivered"]], use_container_width=True, hide_index=True)
+            st.dataframe(alerts_df[["created_at_utc", "severity", "title", "message", "delivered"]], use_container_width=True, hide_index=True)
 
         st.markdown("#### Logs techniques")
         logs_df = load_recent_logs(conn, limit=60)
