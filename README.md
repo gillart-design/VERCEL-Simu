@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/25690021/README.md)
 # Outil de gestion de portefeuille boursier (clé en main)
 
 Outil Python complet pour analyser et optimiser un portefeuille avec:
