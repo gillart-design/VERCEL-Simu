@@ -1552,68 +1552,64 @@ def render_css() -> None:
     st.markdown(
         """
         <style>
-        :root {
-            --brand-blue:#0f2f79;
-            --brand-green:#16a34a;
-            --card-radius:20px;
-        }
+
+        /* ===== GLOBAL ===== */
         .stApp {
-            background:
-                radial-gradient(circle at 10% 10%, rgba(26, 73, 165, 0.06), transparent 32%),
-                radial-gradient(circle at 80% 15%, rgba(22, 163, 74, 0.05), transparent 30%),
-                linear-gradient(180deg, #f7f9fc 0%, #eef3fb 100%);
+            background: linear-gradient(180deg, #f7f9fc 0%, #eef3fb 100%) !important;
+            color: #102a5c !important;
         }
+
+        /* ===== SIDEBAR ===== */
+        section[data-testid="stSidebar"] {
+            background: #0b1220 !important;
+        }
+
+        section[data-testid="stSidebar"] * {
+            color: #e5e7eb !important;
+        }
+
+        /* ===== CARDS ===== */
+        .metric-card {
+            border: 2px solid #d7deea;
+            border-radius: 20px;
+            padding: 1rem;
+            background: white;
+            box-shadow: 0 8px 24px rgba(20, 42, 90, 0.08);
+        }
+
+        .metric-card.primary {
+            background: linear-gradient(160deg, #0f2f79 0%, #1a3f95 100%);
+            color: white;
+        }
+
+        /* ===== INPUTS ===== */
+        .stTextInput input,
+        .stNumberInput input,
+        .stSelectbox div,
+        .stTextArea textarea {
+            background: #ffffff !important;
+            color: #111827 !important;
+        }
+
+        /* ===== BUTTONS ===== */
+        .stButton button {
+            background-color: #0f2f79 !important;
+            color: white !important;
+            border-radius: 10px;
+            border: none;
+        }
+
+        /* ===== TITLES ===== */
         .main-title {
             color: #102a5c;
             font-size: 2rem;
             font-weight: 800;
-            margin-bottom: 0.1rem;
         }
+
         .subtitle {
-            color:#4b5563;
-            margin-bottom: 1rem;
+            color: #4b5563;
         }
-        .metric-card {
-            border: 2px solid #d7deea;
-            border-radius: var(--card-radius);
-            padding: 1rem 1.1rem;
-            background: white;
-            box-shadow: 0 8px 24px rgba(20, 42, 90, 0.08);
-            min-height: 170px;
-        }
-        .metric-card.primary {
-            background: linear-gradient(160deg, #0f2f79 0%, #1a3f95 100%);
-            color: white;
-            border-color: #0f2f79;
-        }
-        .metric-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            margin-bottom: 0.7rem;
-        }
-        .metric-value {
-            font-size: 2.1rem;
-            font-weight: 800;
-            margin-bottom: 0.35rem;
-            line-height: 1.05;
-        }
-        .metric-sub {
-            color: #64748b;
-            font-size: 1rem;
-            margin-bottom: 0.4rem;
-        }
-        .metric-card.primary .metric-sub {
-            color: rgba(255,255,255,0.88);
-        }
-        .event-pill {
-            display:inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            background: #dcfce7;
-            color: #166534;
-        }
+
         </style>
         """,
         unsafe_allow_html=True,
