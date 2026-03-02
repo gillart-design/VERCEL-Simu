@@ -1165,6 +1165,28 @@ def check_trade_risk(if holdings is None or holdings.empty or "symbol" not in ho
     max_zone_pct: float,
 ) -> list[str]:
     errors: list[str] = []
+    # --- HARDENING: holdings peut être vide / sans colonnes au 1er trade ---
+    if holdings is None or not isinstance(holdings, pd.DataFrame):
+        holdings = pd.DataFrame()
+
+    # Normalisation de noms si jamais tu affiches une version "renommée"
+    rename_map = {}
+    if "Ticker" in holdings.columns and "symbol" not in holdings.columns:
+        rename_map["Ticker"] = "symbol"
+    if "Valeur marché" in holdings.columns and "valeur_marche" not in holdings.columns:
+        rename_map["Valeur marché"] = "valeur_marche"
+    if rename_map:
+        holdings = holdings.rename(columns=rename_map)
+
+    # Garantir colonnes minimales attendues
+    required_cols = ["symbol", "zone", "secteur", "valeur_marche"]
+    for c in required_cols:
+        if c not in holdings.columns:
+            holdings[c] = pd.Series(dtype="object" if c in {"symbol","zone","secteur"} else "float64")
+
+    # Types propres
+    holdings["symbol"] = holdings["symbol"].astype(str).str.upper()
+    holdings["valeur_marche"] = pd.to_numeric(holdings["valeur_marche"], errors="coerce").fillna(0.0)
     side = side.upper()
 
     buy_cost_base = (quantity * price + fees) * fx_to_base
