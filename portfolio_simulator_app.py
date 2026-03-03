@@ -26,6 +26,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from portfolio_tool.data import get_market_clock, filter_prices_to_market_sessions
 
@@ -2207,6 +2208,10 @@ def render_css() -> None:
         div[data-testid="stAppSkeleton"] {
             display: none !important;
         }
+        .stale-element {
+            opacity: 1 !important;
+            filter: none !important;
+        }
         .stApp {
             background:
                 radial-gradient(circle at 12% 8%, rgba(17, 73, 170, 0.08), transparent 36%),
@@ -2407,21 +2412,6 @@ def render_css() -> None:
             background: #e3ebfa;
             color: #1e3a8a;
         }
-        .lc-refresh-overlay {
-            position: fixed;
-            top: 86px;
-            right: 24px;
-            width: 92px;
-            height: 92px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 999999;
-            animation: lcOverlayFade 1.15s ease forwards;
-        }
         .lc-refresh-badge {
             width: 78px;
             height: 78px;
@@ -2439,12 +2429,6 @@ def render_css() -> None:
             height: 54px;
             object-fit: contain;
             animation: lcFloat .9s ease-in-out infinite;
-        }
-        @keyframes lcOverlayFade {
-            0% { opacity: 0; }
-            20% { opacity: 1; }
-            65% { opacity: 1; }
-            100% { opacity: 0; }
         }
         @keyframes lcPulse {
             0%,100% { transform: scale(1.0); box-shadow: 0 14px 34px rgba(7,23,51,.20); }
@@ -2503,15 +2487,72 @@ def render_refresh_logo_animation(visible: bool) -> None:
     if not visible:
         return
     logo = get_refresh_logo_data_uri()
-    st.markdown(
+    logo_json = json.dumps(logo)
+    components.html(
         f"""
-        <div class="lc-refresh-overlay">
+        <script>
+        (() => {{
+          const doc = window.parent.document;
+          const id = "lc-refresh-badge-active";
+          const prev = doc.getElementById(id);
+          if (prev) prev.remove();
+          const host = doc.createElement("div");
+          host.id = id;
+          host.style.position = "fixed";
+          host.style.top = "86px";
+          host.style.right = "24px";
+          host.style.width = "92px";
+          host.style.height = "92px";
+          host.style.zIndex = "999999";
+          host.style.pointerEvents = "none";
+          host.style.opacity = "0";
+          host.style.transition = "opacity .18s ease";
+          host.innerHTML = `
             <div class="lc-refresh-badge">
-                <img src="{logo}" alt="Liberty Capital"/>
+              <img src=${logo_json} alt="Liberty Capital"/>
             </div>
-        </div>
+          `;
+          doc.body.appendChild(host);
+          requestAnimationFrame(() => {{ host.style.opacity = "1"; }});
+          setTimeout(() => {{ host.style.opacity = "0"; }}, 760);
+          setTimeout(() => {{ if (host.parentNode) host.parentNode.removeChild(host); }}, 1300);
+        }})();
+        </script>
         """,
-        unsafe_allow_html=True,
+        height=0,
+        width=0,
+    )
+
+
+def force_active_tab(tab_label: str | None) -> None:
+    if not tab_label:
+        return
+    label_json = json.dumps(str(tab_label))
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const target = {label_json};
+          const clickTab = () => {{
+            const doc = window.parent.document;
+            const buttons = doc.querySelectorAll('button[data-baseweb="tab"]');
+            for (const btn of buttons) {{
+              if ((btn.textContent || "").trim() === target) {{
+                btn.click();
+                return true;
+              }}
+            }}
+            return false;
+          }};
+          clickTab();
+          setTimeout(clickTab, 120);
+          setTimeout(clickTab, 420);
+          setTimeout(clickTab, 900);
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
 
 
@@ -2531,21 +2572,32 @@ def apply_plot_theme(
         font={"color": "#102a5c"},
         colorway=["#103b88", "#1f5cb5", "#0f9d58", "#d93025", "#6d83aa"],
         legend={"bgcolor": "rgba(255,255,255,0.85)", "bordercolor": "#d7e3f8", "borderwidth": 1},
-        margin={"l": 20, "r": 20, "t": margin_top, "b": 20},
+        margin={"l": 86, "r": 26, "t": margin_top, "b": 62},
     )
     fig.update_xaxes(
         title=xaxis_title,
+        title_standoff=12,
+        automargin=True,
         showgrid=True,
         gridcolor="#dbe5f5",
         linecolor="#bfd0ea",
         zeroline=False,
+        ticks="outside",
+        tickfont={"size": 12},
+        tickangle=-20,
+        nticks=6,
     )
     fig.update_yaxes(
         title=yaxis_title,
+        title_standoff=10,
+        automargin=True,
         showgrid=True,
         gridcolor="#dbe5f5",
         linecolor="#bfd0ea",
         zeroline=False,
+        ticks="outside",
+        tickfont={"size": 11},
+        nticks=8,
     )
     return fig
 
@@ -3471,6 +3523,8 @@ def main() -> None:
         st.session_state["quote_error_cache"] = {}
     if "last_autorefresh_count" not in st.session_state:
         st.session_state["last_autorefresh_count"] = -1
+    if "pending_tab_focus" not in st.session_state:
+        st.session_state["pending_tab_focus"] = ""
 
     st.markdown(f"<div class='main-title'>{APP_TITLE}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='subtitle'>{APP_SUBTITLE}</div>", unsafe_allow_html=True)
@@ -3693,6 +3747,8 @@ def main() -> None:
         prev_count = int(st.session_state.get("last_autorefresh_count", -1))
         show_refresh_logo = refresh_count > 0 and refresh_count != prev_count
         st.session_state["last_autorefresh_count"] = int(refresh_count)
+        if show_refresh_logo:
+            log_event(conn, "INFO", "refresh_logo_tick", {"refresh_count": int(refresh_count)})
     render_refresh_logo_animation(show_refresh_logo)
 
     transactions = load_transactions(conn)
@@ -3865,6 +3921,10 @@ def main() -> None:
         log_event(conn, "INFO", "alerts_delivered", {"count": delivered_count})
 
     tabs = st.tabs(["Synthèse", "Sélection d'Actifs", "Marchés", "Backtest & Ops", "Assistant Aide à la Décision"])
+    target_focus = str(st.session_state.get("pending_tab_focus", "") or "").strip()
+    if target_focus:
+        force_active_tab(target_focus)
+        st.session_state["pending_tab_focus"] = ""
 
     with tabs[0]:
         status, market_subtitle, market_detail = create_market_clock_card(get_setting(conn, "exchange", DEFAULT_EXCHANGE))
@@ -4487,6 +4547,8 @@ def main() -> None:
                         "currency": state["base_currency"],
                         "created_at": utc_now_iso(),
                     }
+                    st.session_state["pending_tab_focus"] = "Backtest & Ops"
+                    st.rerun()
 
         backtest_result = st.session_state.get("backtest_result")
         if backtest_result:
@@ -4505,6 +4567,7 @@ def main() -> None:
             with bt_close_col:
                 if st.button("✕", key="close_backtest_panel", help="Fermer le résultat du backtest"):
                     st.session_state["backtest_result"] = None
+                    st.session_state["pending_tab_focus"] = "Backtest & Ops"
                     st.rerun()
 
             bt_metrics = backtest_result.get("metrics", {})
@@ -4516,21 +4579,57 @@ def main() -> None:
                 bt_curve_df = bt_curve_df.dropna(subset=["date"])
             if not bt_curve_df.empty and {"equity", "drawdown"}.issubset(set(bt_curve_df.columns)):
                 fig_bt = go.Figure()
-                fig_bt.add_trace(go.Scatter(x=bt_curve_df["date"], y=bt_curve_df["equity"], mode="lines", name="Equity"))
                 fig_bt.add_trace(
                     go.Scatter(
                         x=bt_curve_df["date"],
-                        y=pd.to_numeric(bt_curve_df["drawdown"], errors="coerce") * 100,
+                        y=bt_curve_df["equity"],
                         mode="lines",
+                        line={"color": "#103b88", "width": 2.6},
+                        name="Equity",
+                    )
+                )
+                dd_series = pd.to_numeric(bt_curve_df["drawdown"], errors="coerce") * 100
+                fig_bt.add_trace(
+                    go.Scatter(
+                        x=bt_curve_df["date"],
+                        y=dd_series,
+                        mode="lines",
+                        line={"color": "#d93025", "width": 2.0},
+                        fill="tozeroy",
+                        fillcolor="rgba(217,48,37,0.18)",
                         name="Drawdown %",
                         yaxis="y2",
                     )
                 )
-                fig_bt.update_layout(
+                recovery_dd = dd_series.where(dd_series > -1.0, np.nan)
+                if not recovery_dd.dropna().empty:
+                    fig_bt.add_trace(
+                        go.Scatter(
+                            x=bt_curve_df["date"],
+                            y=recovery_dd,
+                            mode="lines",
+                            line={"color": "#0f9d58", "width": 1.8},
+                            name="Recovery zone",
+                            yaxis="y2",
+                        )
+                    )
+                apply_plot_theme(
+                    fig_bt,
                     title="Backtest - Courbe de capital et drawdown",
+                    xaxis_title="Date",
                     yaxis_title=f"Capital ({backtest_result.get('currency', state['base_currency'])})",
-                    yaxis2={"overlaying": "y", "side": "right", "title": "Drawdown %"},
-                    template="plotly_white",
+                    margin_top=52,
+                )
+                fig_bt.update_layout(
+                    yaxis2={
+                        "overlaying": "y",
+                        "side": "right",
+                        "title": "Drawdown %",
+                        "showgrid": False,
+                        "zeroline": False,
+                        "linecolor": "#bfd0ea",
+                        "tickfont": {"color": "#102a5c"},
+                    }
                 )
                 st.plotly_chart(fig_bt, use_container_width=True)
                 st.plotly_chart(create_benchmark_relative_chart(bt_curve_df), use_container_width=True)
