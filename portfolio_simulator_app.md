@@ -46,6 +46,7 @@ except Exception:  # pragma: no cover - fallback runtime
 APP_TITLE = "Simulateur de Portefeuille Boursier"
 APP_SUBTITLE = "Suivi dynamique, répartition géographique/sectorielle et assistant d'aide à la décision"
 MAIN_TAB_LABELS = ["Synthèse", "Sélection d'Actifs", "Marchés", "Simulation & Opérations", "Assistant Aide à la Décision"]
+AUTO_REFRESH_ALLOWED_TABS = {"Synthèse", "Marchés"}
 DEFAULT_INITIAL_CAPITAL = 100_000.0
 DEFAULT_EXCHANGE = "XNYS"
 DEFAULT_REFRESH_SECONDS = 10
@@ -482,13 +483,6 @@ def localize_text_fr(text: object) -> str:
     return raw
 
 
-def get_query_param_scalar(name: str, default: str = "") -> str:
-    raw = st.query_params.get(name, default)
-    if isinstance(raw, list):
-        return str(raw[0]).strip() if raw else str(default).strip()
-    return str(raw).strip()
-
-
 def localize_dataframe_fr(df: pd.DataFrame) -> pd.DataFrame:
     if df is None:
         return pd.DataFrame()
@@ -531,6 +525,7 @@ def default_mode_settings(allowed_symbols: list[str]) -> dict[str, str]:
     return {
         "live_enabled": "1",
         "live_mode": "polling",
+        "auto_refresh_enabled": "0",
         "refresh_seconds": str(DEFAULT_REFRESH_SECONDS),
         "realtime_symbols": symbols_to_csv(symbols),
         "snapshot_min_seconds": str(DEFAULT_SNAPSHOT_MIN_SECONDS),
@@ -1268,6 +1263,9 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO settings(key, value) VALUES ('live_mode', ?)",
         (DEFAULT_LIVE_MODE,),
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO settings(key, value) VALUES ('auto_refresh_enabled', '0')"
     )
     conn.execute(
         "INSERT OR IGNORE INTO settings(key, value) VALUES ('base_currency', ?)",
@@ -2798,6 +2796,13 @@ def render_refresh_logo_animation(visible: bool) -> None:
     )
 
 
+def get_query_param_scalar(key: str) -> str:
+    raw = st.query_params.get(key)
+    if isinstance(raw, list):
+        return str(raw[0]) if raw else ""
+    return str(raw) if raw is not None else ""
+
+
 def force_active_tab(tab_label: str | None) -> None:
     if not tab_label:
         return
@@ -2830,74 +2835,79 @@ def force_active_tab(tab_label: str | None) -> None:
     )
 
 
-def sync_tabs_state(tab_labels: list[str], preferred_tab: str | None = None) -> None:
-    labels_json = json.dumps([str(t) for t in tab_labels], ensure_ascii=False)
-    preferred_json = json.dumps(str(preferred_tab or ""), ensure_ascii=False)
+def sync_tabs_state(default_tab: str) -> None:
+    labels_json = json.dumps(MAIN_TAB_LABELS)
+    default_json = json.dumps(default_tab if default_tab in MAIN_TAB_LABELS else MAIN_TAB_LABELS[0])
     components.html(
         f"""
         <script>
         (() => {{
           const labels = {labels_json};
-          const preferred = {preferred_json};
-          const key = "portfolio_active_tab_label";
-          const doc = window.parent.document;
-          const normalize = (v) => (v || "").trim();
-          const getButtons = () => Array.from(doc.querySelectorAll('button[data-baseweb="tab"]'));
-
-          const readUrlTab = () => {{
-            try {{
-              const url = new URL(window.parent.location.href);
-              return normalize(url.searchParams.get("tab") || "");
-            }} catch (e) {{
-              return "";
-            }}
-          }};
+          const fallback = {default_json};
+          const key = "lc_active_main_tab";
+          const rootWin = window.parent;
+          const doc = rootWin.document;
 
           const saveTab = (label) => {{
-            const clean = normalize(label);
-            if (!clean) return;
+            if (!labels.includes(label)) return;
             try {{
-              window.parent.localStorage.setItem(key, clean);
+              rootWin.localStorage.setItem(key, label);
             }} catch (e) {{}}
             try {{
-              const url = new URL(window.parent.location.href);
-              url.searchParams.set("tab", clean);
-              window.parent.history.replaceState({{}}, "", url.toString());
+              const url = new URL(rootWin.location.href);
+              url.searchParams.set("onglet", label);
+              rootWin.history.replaceState({{}}, "", url.toString());
             }} catch (e) {{}}
           }};
 
-          const bindAndRestore = () => {{
-            const buttons = getButtons();
-            if (!buttons.length) return;
+          const resolveWanted = () => {{
+            let wanted = fallback;
+            try {{
+              const url = new URL(rootWin.location.href);
+              const fromUrl = (url.searchParams.get("onglet") || "").trim();
+              if (labels.includes(fromUrl)) {{
+                wanted = fromUrl;
+              }} else {{
+                const saved = (rootWin.localStorage.getItem(key) || "").trim();
+                if (labels.includes(saved)) wanted = saved;
+              }}
+            }} catch (e) {{}}
+            return wanted;
+          }};
 
+          const clickWanted = () => {{
+            const wanted = resolveWanted();
+            const buttons = doc.querySelectorAll('button[data-baseweb="tab"]');
             for (const btn of buttons) {{
-              if (btn.dataset.tabStateBound === "1") continue;
-              btn.dataset.tabStateBound = "1";
-              btn.addEventListener("click", () => saveTab(btn.textContent || ""));
-            }}
-
-            const selected = buttons.find((btn) => btn.getAttribute("aria-selected") === "true");
-            if (selected) saveTab(selected.textContent || "");
-
-            let target = preferred || readUrlTab();
-            if (!target) {{
-              try {{
-                target = normalize(window.parent.localStorage.getItem(key) || "");
-              }} catch (e) {{
-                target = "";
+              const label = (btn.textContent || "").trim();
+              if (label === wanted) {{
+                if (btn.getAttribute("aria-selected") !== "true") {{
+                  btn.click();
+                }}
+                saveTab(label);
+                return true;
               }}
             }}
-            if (!labels.includes(target)) return;
+            return false;
+          }};
 
-            const targetBtn = buttons.find((btn) => normalize(btn.textContent) === target);
-            if (targetBtn && targetBtn.getAttribute("aria-selected") !== "true") {{
-              targetBtn.click();
+          const bindClicks = () => {{
+            const buttons = doc.querySelectorAll('button[data-baseweb="tab"]');
+            for (const btn of buttons) {{
+              if (btn.dataset.lcTabBound === "1") continue;
+              btn.dataset.lcTabBound = "1";
+              btn.addEventListener("click", () => {{
+                const label = (btn.textContent || "").trim();
+                saveTab(label);
+              }});
             }}
           }};
 
-          bindAndRestore();
-          setTimeout(bindAndRestore, 120);
-          setTimeout(bindAndRestore, 380);
+          bindClicks();
+          clickWanted();
+          setTimeout(() => {{ bindClicks(); clickWanted(); }}, 120);
+          setTimeout(() => {{ bindClicks(); clickWanted(); }}, 420);
+          setTimeout(() => {{ bindClicks(); clickWanted(); }}, 900);
         }})();
         </script>
         """,
@@ -3891,6 +3901,8 @@ def main() -> None:
     if "live_mode" not in st.session_state:
         mode = get_setting(conn, "live_mode", DEFAULT_LIVE_MODE).strip().lower()
         st.session_state["live_mode"] = mode if mode in {"polling", "websocket"} else DEFAULT_LIVE_MODE
+    if "auto_refresh_enabled" not in st.session_state:
+        st.session_state["auto_refresh_enabled"] = get_setting(conn, "auto_refresh_enabled", "0") == "1"
     if "polygon_api_key" not in st.session_state:
         st.session_state["polygon_api_key"] = os.getenv("POLYGON_API_KEY", "").strip()
     if "base_currency" not in st.session_state:
@@ -3984,6 +3996,7 @@ def main() -> None:
             preset = apply_default_mode_settings(conn, universe_symbols)
             st.session_state["live_enabled"] = preset.get("live_enabled", "1") == "1"
             st.session_state["live_mode"] = preset.get("live_mode", DEFAULT_LIVE_MODE)
+            st.session_state["auto_refresh_enabled"] = preset.get("auto_refresh_enabled", "0") == "1"
             st.session_state["refresh_seconds"] = int(float(preset.get("refresh_seconds", str(DEFAULT_REFRESH_SECONDS))))
             st.session_state["realtime_symbols"] = parse_symbols_csv(
                 preset.get("realtime_symbols", symbols_to_csv(DEFAULT_REALTIME_SYMBOLS)),
@@ -4027,6 +4040,11 @@ def main() -> None:
             index=0 if st.session_state["live_mode"] == "polling" else 1,
         )
         live_mode = "polling" if live_mode_label.startswith("Sondage") else "websocket"
+        auto_refresh_enabled = st.toggle(
+            "Rafraîchissement automatique",
+            value=st.session_state["auto_refresh_enabled"],
+            help="Désactivez pour éviter les retours d’onglet et les rafraîchissements visuels.",
+        )
         min_refresh = 1 if live_mode == "websocket" else 5
         refresh_seconds = st.slider(
             "Fréquence de rafraîchissement UI (secondes)",
@@ -4117,6 +4135,7 @@ def main() -> None:
         alert_email_to = st.text_input("Email alertes", value=st.session_state["alert_email_to"])
 
         st.session_state["live_enabled"] = live_enabled
+        st.session_state["auto_refresh_enabled"] = auto_refresh_enabled
         st.session_state["refresh_seconds"] = refresh_seconds
         st.session_state["realtime_symbols"] = realtime_symbols
         st.session_state["live_mode"] = live_mode
@@ -4136,6 +4155,7 @@ def main() -> None:
         st.session_state["alert_webhook_url"] = alert_webhook_url
         st.session_state["alert_email_to"] = alert_email_to
         set_setting(conn, "live_enabled", "1" if live_enabled else "0")
+        set_setting(conn, "auto_refresh_enabled", "1" if auto_refresh_enabled else "0")
         set_setting(conn, "refresh_seconds", str(refresh_seconds))
         set_setting(conn, "realtime_symbols", symbols_to_csv(realtime_symbols))
         set_setting(conn, "live_mode", live_mode)
@@ -4156,19 +4176,22 @@ def main() -> None:
         set_setting(conn, "alert_email_to", alert_email_to.strip())
         st.caption(f"Les transactions et instantanés sont persistés dans `{db_path.as_posix()}`.")
 
-    active_tab_hint = get_query_param_scalar("tab", MAIN_TAB_LABELS[0])
-    if active_tab_hint not in MAIN_TAB_LABELS:
-        active_tab_hint = MAIN_TAB_LABELS[0]
-
+    active_tab_hint = get_query_param_scalar("onglet").strip()
+    allow_auto_refresh = active_tab_hint in AUTO_REFRESH_ALLOWED_TABS if active_tab_hint else True
     show_refresh_logo = False
-    if st.session_state["live_enabled"] and st_autorefresh is not None and active_tab_hint == MAIN_TAB_LABELS[0]:
+    if (
+        st.session_state["live_enabled"]
+        and st.session_state["auto_refresh_enabled"]
+        and allow_auto_refresh
+        and st_autorefresh is not None
+    ):
         refresh_count = st_autorefresh(interval=int(st.session_state["refresh_seconds"]) * 1000, key="portfolio-live-refresh")
         prev_count = int(st.session_state.get("last_autorefresh_count", -1))
         show_refresh_logo = refresh_count > 0 and refresh_count != prev_count
         st.session_state["last_autorefresh_count"] = int(refresh_count)
         if show_refresh_logo:
             log_event(conn, "INFO", "refresh_logo_tick", {"refresh_count": int(refresh_count)})
-    render_refresh_logo_animation(show_refresh_logo and active_tab_hint == MAIN_TAB_LABELS[0])
+    render_refresh_logo_animation(show_refresh_logo)
 
     transactions = load_transactions(conn)
     positions_raw = compute_positions(transactions, accounting_method=st.session_state["accounting_method"])
@@ -4341,10 +4364,21 @@ def main() -> None:
 
     tabs = st.tabs(MAIN_TAB_LABELS)
     target_focus = str(st.session_state.get("pending_tab_focus", "") or "").strip()
-    preferred_tab = target_focus if target_focus in MAIN_TAB_LABELS else active_tab_hint
-    sync_tabs_state(MAIN_TAB_LABELS, preferred_tab=preferred_tab)
+    if target_focus not in MAIN_TAB_LABELS:
+        target_focus = ""
+    url_tab = get_query_param_scalar("onglet").strip()
+    if url_tab not in MAIN_TAB_LABELS:
+        url_tab = ""
     if target_focus:
-        st.session_state["pending_tab_focus"] = ""
+        force_active_tab(target_focus)
+        try:
+            st.query_params["onglet"] = target_focus
+        except Exception:
+            pass
+    elif url_tab and url_tab != MAIN_TAB_LABELS[0]:
+        force_active_tab(url_tab)
+    sync_tabs_state(target_focus or url_tab or MAIN_TAB_LABELS[0])
+    st.session_state["pending_tab_focus"] = ""
 
     with tabs[0]:
         status, market_subtitle, market_detail = create_market_clock_card(get_setting(conn, "exchange", DEFAULT_EXCHANGE))
