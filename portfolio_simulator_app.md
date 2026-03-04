@@ -45,6 +45,7 @@ except Exception:  # pragma: no cover - fallback runtime
 
 APP_TITLE = "Simulateur de Portefeuille Boursier"
 APP_SUBTITLE = "Suivi dynamique, répartition géographique/sectorielle et assistant d'aide à la décision"
+MAIN_TAB_LABELS = ["Synthèse", "Sélection d'Actifs", "Marchés", "Simulation & Opérations", "Assistant Aide à la Décision"]
 DEFAULT_INITIAL_CAPITAL = 100_000.0
 DEFAULT_EXCHANGE = "XNYS"
 DEFAULT_REFRESH_SECONDS = 10
@@ -264,6 +265,149 @@ CATALOG_BY_SYMBOL = {row["symbol"]: row for row in ASSET_UNIVERSE}
 
 LOGGER = logging.getLogger("portfolio_simulator")
 
+DISPLAY_LABELS_FR = {
+    "id": "ID",
+    "created_at_utc": "Créé le (UTC)",
+    "executed_at_utc": "Exécuté le (UTC)",
+    "symbol": "Ticker",
+    "name": "Nom",
+    "asset_type": "Type d'actif",
+    "sector": "Secteur",
+    "zone": "Zone",
+    "side": "Sens",
+    "quantity": "Quantité",
+    "price": "Prix",
+    "fees": "Frais",
+    "currency": "Devise",
+    "fx_to_base": "FX vers devise portefeuille",
+    "strategy": "Stratégie",
+    "strategy_tag": "Tag stratégie",
+    "exchange": "Place",
+    "note": "Note",
+    "order_type": "Type d'ordre",
+    "trigger_price": "Prix de déclenchement",
+    "execution_status": "Statut d'exécution",
+    "fill_ratio": "Taux exécuté",
+    "executed_quantity": "Quantité exécutée",
+    "executed_price": "Prix exécuté",
+    "slippage_bps": "Glissement (bps)",
+    "spread_bps": "Écart achat/vente (bps)",
+    "portfolio_value": "Valeur portefeuille",
+    "cash": "Liquidités",
+    "invested": "Investi",
+    "pnl": "Gain/Perte",
+    "pnl_pct": "Gain/Perte %",
+    "pnl_latent": "Gain/Perte latent",
+    "pnl_realise": "Gain/Perte réalisé",
+    "pnl_total_live": "Gain/Perte total (temps réel)",
+    "pnl_realise_historique": "Gain/Perte réalisé (historique)",
+    "event_type": "Type d'événement",
+    "event_label": "Libellé événement",
+    "severity": "Sévérité",
+    "title": "Titre",
+    "message": "Message",
+    "payload_json": "Payload JSON",
+    "details_json": "Détails JSON",
+    "delivered": "Envoyée",
+    "provider": "Fournisseur",
+    "score": "Score santé",
+    "success": "Succès",
+    "error": "Erreurs",
+    "consecutive_error": "Erreurs consécutives",
+    "circuit_open": "Circuit ouvert",
+    "last_error": "Dernière erreur",
+    "last_error_utc": "Horodatage erreur",
+    "last": "Dernier",
+    "previous": "Précédent",
+    "change_pct": "Variation %",
+    "quote_time_utc": "Horodatage cotation (UTC)",
+    "market_state": "État marché",
+    "source": "Source API",
+    "regular_price": "Prix régulier",
+    "pre_price": "Prix pré-marché",
+    "post_price": "Prix post-marché",
+    "official_close": "Clôture officielle",
+    "price_context": "Contexte prix",
+    "api_error": "Erreur API",
+    "data_age_seconds": "Âge cotation (s)",
+    "symbol_stale": "Actif obsolète",
+    "source_health_score": "Santé fournisseur",
+    "start_date": "Date début",
+    "end_date": "Date fin",
+    "initial_capital": "Capital initial",
+    "initial_capital_backtest": "Capital initial simulation",
+    "benchmark": "Indice de référence",
+    "annual_return_pct": "Rendement annuel %",
+    "volatility_pct": "Volatilité %",
+    "sharpe": "Ratio de Sharpe",
+    "max_drawdown_pct": "Repli maximal %",
+    "final_value": "Valeur finale",
+    "cum_fees_slippage": "Frais + glissement cumulés",
+    "avg_turnover_pct": "Rotation moyenne %",
+    "relative_vs_benchmark_pct": "Écart vs indice %",
+    "action": "Action",
+    "notional_base": "Montant devise portefeuille",
+    "reason": "Raison",
+    "priority": "Priorité",
+    "ret_1m": "Perf 1 mois %",
+    "ret_3m": "Perf 3 mois %",
+    "vol_3m": "Volatilité 3 mois %",
+    "size_pct": "Poids cible %",
+    "confidence": "Confiance",
+    "rationale": "Justification",
+    "risks": "Risques",
+    "invalidation": "Invalidation",
+    "date": "Date",
+    "equity": "Capital",
+    "returns": "Rendement",
+    "drawdown": "Repli maximal",
+    "turnover": "Rotation",
+    "cost_value": "Coût total",
+    "benchmark_equity": "Capital indice",
+}
+
+DISPLAY_VALUES_FR = {
+    "BUY": "Achat",
+    "SELL": "Vente",
+    "MARKET": "Marché",
+    "LIMIT": "Limite",
+    "STOP": "Stop",
+    "FILLED": "Exécuté",
+    "PARTIAL": "Partiel",
+    "PENDING": "En attente",
+    "INIT": "Initialisation",
+    "UP": "Hausse",
+    "DOWN": "Baisse",
+    "OPEN": "Ouvert",
+    "CLOSED": "Fermé",
+    "UNKNOWN": "Inconnu",
+    "DELAYED": "Différé",
+    "UNAVAILABLE": "Indisponible",
+    "STREAMING": "Flux continu",
+    "UNAUTHENTICATED": "Non authentifié",
+    "disabled": "désactivé",
+    "n/a": "n/d",
+    "starting": "démarrage",
+    "connected": "connecté",
+    "authenticating": "authentification",
+    "reconnecting": "reconnexion",
+    "stopped": "arrêté",
+    "idle": "veille",
+    "error": "erreur",
+    "regular": "séance",
+    "pre": "pré-marché",
+    "post": "post-marché",
+    "off_session": "hors séance",
+    "bid_fallback": "secours bid",
+    "delayed": "différé",
+    "tick": "tick",
+    "unavailable": "indisponible",
+    "buy_hold": "Achat & conservation",
+    "sma50": "SMA50 dynamique",
+    "True": "Oui",
+    "False": "Non",
+}
+
 
 def setup_logger() -> None:
     if LOGGER.handlers:
@@ -310,6 +454,59 @@ def money(amount: float, currency: str) -> str:
     s = f"{amount:,.2f}".replace(",", " ").replace(".", ",")
     symbol = symbol_map.get(cur, cur)
     return f"{s} {symbol}"
+
+
+def localize_value_fr(value: object) -> object:
+    if isinstance(value, (bool, np.bool_)):
+        return "Oui" if bool(value) else "Non"
+    if value is None:
+        return value
+    if isinstance(value, (int, float, np.integer, np.floating)) and not pd.isna(value):
+        return value
+    raw = str(value).strip()
+    if not raw:
+        return value
+    for key in (raw, raw.upper(), raw.lower()):
+        if key in DISPLAY_VALUES_FR:
+            return DISPLAY_VALUES_FR[key]
+    return value
+
+
+def localize_text_fr(text: object) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    for key in (raw, raw.upper(), raw.lower()):
+        if key in DISPLAY_VALUES_FR:
+            return DISPLAY_VALUES_FR[key]
+    return raw
+
+
+def get_query_param_scalar(name: str, default: str = "") -> str:
+    raw = st.query_params.get(name, default)
+    if isinstance(raw, list):
+        return str(raw[0]).strip() if raw else str(default).strip()
+    return str(raw).strip()
+
+
+def localize_dataframe_fr(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None:
+        return pd.DataFrame()
+    if df.empty:
+        renamed = {c: DISPLAY_LABELS_FR.get(str(c), str(c)) for c in df.columns}
+        return df.rename(columns=renamed)
+    out = df.copy()
+    out = out.rename(columns={c: DISPLAY_LABELS_FR.get(str(c), str(c)) for c in out.columns})
+    for col in out.columns:
+        if pd.api.types.is_bool_dtype(out[col]):
+            out[col] = out[col].map(lambda v: "Oui" if bool(v) else "Non")
+        elif pd.api.types.is_object_dtype(out[col]) or pd.api.types.is_string_dtype(out[col]):
+            out[col] = out[col].map(localize_value_fr)
+    return out
+
+
+def render_dataframe_fr(data: pd.DataFrame, **kwargs) -> None:
+    st.dataframe(localize_dataframe_fr(data), **kwargs)
 
 
 def parse_symbols_csv(raw: str, allowed: set[str] | None = None) -> list[str]:
@@ -2156,7 +2353,7 @@ def local_ai_assistant(
         )
     actions.append("Cadre d'exécution recommandé:")
     actions.append("1) Définir un poids maximal par ligne (5-10% prudent, 10-15% équilibré, 15-20% dynamique).")
-    actions.append("2) Exécuter par paliers et journaliser chaque achat/vente pour conserver la cohérence des snapshots.")
+    actions.append("2) Exécuter par paliers et journaliser chaque achat/vente pour conserver la cohérence des instantanés.")
     actions.append("3) Mettre en place un seuil de réduction des risques si la valeur totale baisse de 5% à 8% depuis un sommet récent.")
     if objective.strip():
         actions.append(f"Objectif utilisateur: {objective.strip()}")
@@ -2216,6 +2413,10 @@ def render_css() -> None:
             display: none !important;
         }
         .stale-element {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+        [data-stale="true"] {
             opacity: 1 !important;
             filter: none !important;
         }
@@ -2307,12 +2508,22 @@ def render_css() -> None:
         }
         .stApp {
             --gdg-bg-cell: #ffffff;
+            --gdg-bg-cell-medium: #f7faff;
             --gdg-bg-header: #edf4ff;
+            --gdg-bg-header-has-focus: #e7f0ff;
+            --gdg-bg-header-hovered: #e7f0ff;
             --gdg-bg-row-hover: #eef4ff;
             --gdg-bg-odd: #f8fbff;
             --gdg-text-dark: #102a5c;
+            --gdg-text-medium: #2d4778;
+            --gdg-text-light: #5c739d;
+            --gdg-text-header: #102a5c;
+            --gdg-text-header-selected: #102a5c;
+            --gdg-bg-cell-selected: #e7f0ff;
+            --gdg-accent-color: #0f2f79;
             --gdg-horizontal-border-color: #d7e3f8;
             --gdg-vertical-border-color: #d7e3f8;
+            --gdg-border-color: #d7e3f8;
             --gdg-header-font-style: 700 13px "Source Sans Pro", sans-serif;
         }
         button[data-baseweb="tab"] {
@@ -2340,8 +2551,47 @@ def render_css() -> None:
             border: 1px solid var(--line-soft);
             border-radius: 14px;
         }
+        div[data-testid="stDataFrame"],
+        div[data-testid="stDataFrame"] > div,
+        div[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {
+            --gdg-bg-cell: #ffffff !important;
+            --gdg-bg-cell-medium: #f7faff !important;
+            --gdg-bg-header: #edf4ff !important;
+            --gdg-bg-header-has-focus: #e7f0ff !important;
+            --gdg-bg-header-hovered: #e7f0ff !important;
+            --gdg-bg-row-hover: #eef4ff !important;
+            --gdg-bg-odd: #f8fbff !important;
+            --gdg-bg-cell-selected: #e7f0ff !important;
+            --gdg-accent-color: #0f2f79 !important;
+            --gdg-text-dark: #102a5c !important;
+            --gdg-text-medium: #2d4778 !important;
+            --gdg-text-light: #5c739d !important;
+            --gdg-text-header: #102a5c !important;
+            --gdg-text-header-selected: #102a5c !important;
+            --gdg-horizontal-border-color: #d7e3f8 !important;
+            --gdg-vertical-border-color: #d7e3f8 !important;
+            --gdg-border-color: #d7e3f8 !important;
+        }
         div[data-testid="stDataFrame"] * {
             color: var(--text-main) !important;
+        }
+        div[data-testid="stDataFrame"] canvas {
+            background: #ffffff !important;
+        }
+        div[data-testid="stAppViewContainer"],
+        div[data-testid="stAppViewContainer"] p,
+        div[data-testid="stAppViewContainer"] li,
+        div[data-testid="stAppViewContainer"] span,
+        div[data-testid="stAppViewContainer"] label,
+        div[data-testid="stAppViewContainer"] small,
+        div[data-testid="stAppViewContainer"] .stMarkdown,
+        div[data-testid="stAppViewContainer"] .stCaption,
+        div[data-testid="stAppViewContainer"] .stAlert,
+        div[data-testid="stAppViewContainer"] .stInfo {
+            color: var(--text-main) !important;
+        }
+        div[data-testid="stAppViewContainer"] a {
+            color: #1b5fb8 !important;
         }
         .backtest-panel {
             border: 2px solid #d2ddf2;
@@ -2409,15 +2659,15 @@ def render_css() -> None:
         }
         .event-pill.gain {
             background: #dcfce7;
-            color: #166534;
+            color: #166534 !important;
         }
         .event-pill.loss {
             background: #fee2e2;
-            color: #991b1b;
+            color: #991b1b !important;
         }
         .event-pill.neutral {
             background: #e3ebfa;
-            color: #1e3a8a;
+            color: #1e3a8a !important;
         }
         .lc-refresh-badge {
             width: 78px;
@@ -2444,6 +2694,12 @@ def render_css() -> None:
         @keyframes lcFloat {
             0%,100% { transform: translateY(0px); }
             50% { transform: translateY(-4px); }
+        }
+        @keyframes lcBadgeShow {
+            0% { opacity: 0; transform: scale(.86); }
+            20% { opacity: 1; transform: scale(1); }
+            78% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(.92); }
         }
         </style>
         """,
@@ -2494,6 +2750,17 @@ def render_refresh_logo_animation(visible: bool) -> None:
     if not visible:
         return
     logo = get_refresh_logo_data_uri()
+    badge_id = f"lc-refresh-inline-{int(time.time() * 1000)}"
+    st.markdown(
+        f"""
+        <div id="{badge_id}" style="position:fixed;top:86px;right:24px;width:92px;height:92px;z-index:999998;pointer-events:none;animation:lcBadgeShow 1.12s ease forwards;">
+            <div class="lc-refresh-badge">
+                <img src="{logo}" alt="Liberty Capital"/>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     logo_json = json.dumps(logo)
     components.html(
         f"""
@@ -2563,6 +2830,82 @@ def force_active_tab(tab_label: str | None) -> None:
     )
 
 
+def sync_tabs_state(tab_labels: list[str], preferred_tab: str | None = None) -> None:
+    labels_json = json.dumps([str(t) for t in tab_labels], ensure_ascii=False)
+    preferred_json = json.dumps(str(preferred_tab or ""), ensure_ascii=False)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const labels = {labels_json};
+          const preferred = {preferred_json};
+          const key = "portfolio_active_tab_label";
+          const doc = window.parent.document;
+          const normalize = (v) => (v || "").trim();
+          const getButtons = () => Array.from(doc.querySelectorAll('button[data-baseweb="tab"]'));
+
+          const readUrlTab = () => {{
+            try {{
+              const url = new URL(window.parent.location.href);
+              return normalize(url.searchParams.get("tab") || "");
+            }} catch (e) {{
+              return "";
+            }}
+          }};
+
+          const saveTab = (label) => {{
+            const clean = normalize(label);
+            if (!clean) return;
+            try {{
+              window.parent.localStorage.setItem(key, clean);
+            }} catch (e) {{}}
+            try {{
+              const url = new URL(window.parent.location.href);
+              url.searchParams.set("tab", clean);
+              window.parent.history.replaceState({{}}, "", url.toString());
+            }} catch (e) {{}}
+          }};
+
+          const bindAndRestore = () => {{
+            const buttons = getButtons();
+            if (!buttons.length) return;
+
+            for (const btn of buttons) {{
+              if (btn.dataset.tabStateBound === "1") continue;
+              btn.dataset.tabStateBound = "1";
+              btn.addEventListener("click", () => saveTab(btn.textContent || ""));
+            }}
+
+            const selected = buttons.find((btn) => btn.getAttribute("aria-selected") === "true");
+            if (selected) saveTab(selected.textContent || "");
+
+            let target = preferred || readUrlTab();
+            if (!target) {{
+              try {{
+                target = normalize(window.parent.localStorage.getItem(key) || "");
+              }} catch (e) {{
+                target = "";
+              }}
+            }}
+            if (!labels.includes(target)) return;
+
+            const targetBtn = buttons.find((btn) => normalize(btn.textContent) === target);
+            if (targetBtn && targetBtn.getAttribute("aria-selected") !== "true") {{
+              targetBtn.click();
+            }}
+          }};
+
+          bindAndRestore();
+          setTimeout(bindAndRestore, 120);
+          setTimeout(bindAndRestore, 380);
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def apply_plot_theme(
     fig: go.Figure,
     *,
@@ -2579,21 +2922,35 @@ def apply_plot_theme(
         font={"color": "#102a5c"},
         colorway=["#103b88", "#1f5cb5", "#0f9d58", "#d93025", "#6d83aa"],
         legend={"bgcolor": "rgba(255,255,255,0.85)", "bordercolor": "#d7e3f8", "borderwidth": 1},
-        margin={"l": 20, "r": 20, "t": margin_top, "b": 20},
+        margin={"l": 106, "r": 30, "t": margin_top, "b": 66},
+        uniformtext={"minsize": 10, "mode": "hide"},
     )
     fig.update_xaxes(
         title=xaxis_title,
+        title_standoff=12,
+        automargin=True,
         showgrid=True,
         gridcolor="#dbe5f5",
         linecolor="#bfd0ea",
         zeroline=False,
+        ticks="outside",
+        tickfont={"size": 12},
+        tickangle=-20,
+        nticks=6,
+        ticklabeloverflow="allow",
     )
     fig.update_yaxes(
         title=yaxis_title,
+        title_standoff=16,
+        automargin=True,
         showgrid=True,
         gridcolor="#dbe5f5",
         linecolor="#bfd0ea",
         zeroline=False,
+        ticks="outside",
+        tickfont={"size": 11},
+        nticks=8,
+        ticklabeloverflow="allow",
     )
     return fig
 
@@ -2630,7 +2987,7 @@ def render_metric_card(
 def create_evolution_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.Figure:
     fig = go.Figure()
     if snapshots.empty:
-        apply_plot_theme(fig, title="Aucun snapshot disponible")
+        apply_plot_theme(fig, title="Aucun instantané disponible")
         return fig
     points = snapshots.copy()
     points["captured_local"] = pd.to_datetime(points["captured_at_utc"], utc=True).dt.tz_convert(DISPLAY_TZ)
@@ -2662,11 +3019,12 @@ def create_evolution_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go
         )
     apply_plot_theme(
         fig,
-        title="Évolution du portefeuille (snapshots achats/ventes/hausses/baisses)",
+        title="Évolution du portefeuille (instantanés achats/ventes/hausses/baisses)",
         xaxis_title="Date",
         yaxis_title=f"Valeur ({currency})",
         margin_top=50,
     )
+    fig.update_xaxes(nticks=5, tickformat="%H:%M\n%d/%m")
     return fig
 
 
@@ -2705,7 +3063,7 @@ def create_allocation_chart(data: pd.DataFrame, label_col: str, value_col: str, 
 def create_drawdown_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.Figure:
     fig = go.Figure()
     if snapshots.empty:
-        apply_plot_theme(fig, title="Drawdown indisponible")
+        apply_plot_theme(fig, title="Repli maximal indisponible")
         return fig
     pts = snapshots.copy()
     pts["captured_local"] = pd.to_datetime(pts["captured_at_utc"], utc=True).dt.tz_convert(DISPLAY_TZ)
@@ -2720,7 +3078,7 @@ def create_drawdown_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.
             line={"color": "#dc2626", "width": 2.4},
             fill="tozeroy",
             fillcolor="rgba(217,48,37,0.20)",
-            name="Drawdown",
+            name="Repli maximal",
         )
     )
     recovery = drawdown.where(drawdown > -1.0, np.nan)
@@ -2736,9 +3094,9 @@ def create_drawdown_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.
         )
     apply_plot_theme(
         fig,
-        title="Drawdown portefeuille",
+        title="Repli maximal du portefeuille",
         xaxis_title="Date",
-        yaxis_title="Drawdown %",
+        yaxis_title="Repli maximal %",
         margin_top=45,
     )
     fig.add_hline(y=0, line={"color": "#6d83aa", "dash": "dot"})
@@ -2748,7 +3106,7 @@ def create_drawdown_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.
 def create_pnl_contribution_chart(holdings: pd.DataFrame, transactions: pd.DataFrame, base_currency: str) -> go.Figure:
     if holdings is None or holdings.empty:
         fig = go.Figure()
-        fig.update_layout(title="Contribution PnL indisponible")
+        fig.update_layout(title="Contribution gain/perte indisponible")
         return fig
     h = holdings.copy()
     h["latent"] = pd.to_numeric(h["pnl_latent"], errors="coerce").fillna(0.0)
@@ -2773,25 +3131,26 @@ def create_pnl_contribution_chart(holdings: pd.DataFrame, transactions: pd.DataF
     realized_color = h["realized_live"].map(lambda v: "#0f9d58" if safe_float(v, 0.0) >= 0 else "#ef4444").tolist()
     fx_color = h["fx_effect"].map(lambda v: "#22c55e" if safe_float(v, 0.0) >= 0 else "#f87171").tolist()
     fee_color = ["#b91c1c"] * len(h)
-    fig.add_trace(go.Bar(x=h["symbol"], y=h["latent"], name="PnL latent", marker={"color": latent_color}))
-    fig.add_trace(go.Bar(x=h["symbol"], y=h["realized_live"], name="PnL réalisé live", marker={"color": realized_color}))
+    fig.add_trace(go.Bar(x=h["symbol"], y=h["latent"], name="Gain/Perte latent", marker={"color": latent_color}))
+    fig.add_trace(go.Bar(x=h["symbol"], y=h["realized_live"], name="Gain/Perte réalisé (base temps réel)", marker={"color": realized_color}))
     fig.add_trace(go.Bar(x=h["symbol"], y=h["fx_effect"], name="Effet FX", marker={"color": fx_color}))
     fig.add_trace(go.Bar(x=h["symbol"], y=h["fees"], name="Frais", marker={"color": fee_color}))
     apply_plot_theme(
         fig,
-        title=f"Contribution PnL par actif ({base_currency})",
+        title=f"Contribution gain/perte par actif ({base_currency})",
         xaxis_title="Actif",
-        yaxis_title=f"Contribution ({base_currency})",
+        yaxis_title=f"Contrib. ({base_currency})",
         margin_top=45,
     )
     fig.update_layout(barmode="relative")
+    fig.update_xaxes(tickangle=-32, nticks=10)
     return fig
 
 
 def create_benchmark_relative_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     if df is None or df.empty or "date" not in df.columns:
-        apply_plot_theme(fig, title="Benchmark vs portefeuille indisponible")
+        apply_plot_theme(fig, title="Indice de référence vs portefeuille indisponible")
         return fig
     x = pd.to_datetime(df["date"], errors="coerce")
     if "equity" in df.columns:
@@ -2814,17 +3173,18 @@ def create_benchmark_relative_chart(df: pd.DataFrame) -> go.Figure:
                     x=x,
                     y=b / b.dropna().iloc[0] * 100,
                     mode="lines",
-                    name="Benchmark (base 100)",
+                    name="Indice de référence (base 100)",
                     line={"color": "#d93025", "width": 2.1, "dash": "dot"},
                 )
             )
     apply_plot_theme(
         fig,
-        title="Performance relative vs benchmark",
+        title="Performance relative vs indice de référence",
         xaxis_title="Date",
         yaxis_title="Base 100",
         margin_top=45,
     )
+    fig.update_xaxes(tickformat="%b %Y", tickangle=0, nticks=8)
     return fig
 
 
@@ -2837,6 +3197,64 @@ def create_market_clock_card(exchange: str) -> tuple[str, str, str]:
         return status, subtitle, detail
     except Exception as exc:
         return "Indisponible", f"Horloge marché non disponible ({exchange})", str(exc)
+
+
+def render_positions_portefeuille(holdings: pd.DataFrame, base_currency: str, split_factors: dict[str, float]) -> None:
+    st.markdown("#### Positions en portefeuille")
+    split_adjusted = {k: v for k, v in split_factors.items() if abs(safe_float(v, 1.0) - 1.0) > 1e-9}
+    if split_adjusted:
+        st.caption(
+            "Ajustements split appliqués automatiquement: "
+            + ", ".join([f"{sym} x{safe_float(fac, 1.0):.4f}" for sym, fac in split_adjusted.items()])
+        )
+    if holdings.empty:
+        st.info("Aucune position ouverte.")
+        return
+
+    view = holdings[
+        [
+            "symbol",
+            "nom",
+            "zone",
+            "secteur",
+            "type",
+            "quantite",
+            "prix_moyen",
+            "cours",
+            "devise",
+            "fx_to_base",
+            "valeur_marche_devise",
+            "valeur_marche",
+            "pnl_latent",
+            "pnl_realise",
+            "pnl_total_live",
+            "pnl_realise_historique",
+        ]
+    ].copy()
+    render_dataframe_fr(
+        view.rename(
+            columns={
+                "symbol": "Ticker",
+                "nom": "Nom",
+                "zone": "Zone",
+                "secteur": "Secteur",
+                "type": "Type",
+                "quantite": "Quantité",
+                "prix_moyen": "Prix moyen",
+                "cours": "Cours",
+                "devise": "Devise",
+                "fx_to_base": f"FX vers {base_currency}",
+                "valeur_marche_devise": "Valeur devise",
+                "valeur_marche": "Valeur marché",
+                "pnl_latent": "Gain/Perte latent (temps réel)",
+                "pnl_realise": "Gain/Perte réalisé (base temps réel)",
+                "pnl_total_live": "Gain/Perte total (temps réel)",
+                "pnl_realise_historique": "Gain/Perte réalisé (historique)",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def opportunities_and_vigilance(metrics: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -3065,8 +3483,8 @@ def evaluate_alerts(
         if insert_alert(conn, "pnl_loss", "HIGH", "Perte seuil atteinte", f"Performance portefeuille: {pnl_pct:.2f}%"):
             fired.append("Perte seuil atteinte")
     if drawdown_pct <= alert_drawdown_pct:
-        if insert_alert(conn, "drawdown", "HIGH", "Drawdown critique", f"Drawdown courant: {drawdown_pct:.2f}%"):
-            fired.append("Drawdown critique")
+        if insert_alert(conn, "drawdown", "HIGH", "Repli maximal critique", f"Repli maximal courant: {drawdown_pct:.2f}%"):
+            fired.append("Repli maximal critique")
     if pnl_pct >= alert_gain_pct:
         if insert_alert(conn, "pnl_gain", "INFO", "Objectif gain atteint", f"Performance portefeuille: {pnl_pct:.2f}%"):
             fired.append("Objectif gain atteint")
@@ -3534,10 +3952,10 @@ def main() -> None:
         initial_capital = float(get_setting(conn, "initial_capital", str(DEFAULT_INITIAL_CAPITAL)))
         exchange = get_setting(conn, "exchange", DEFAULT_EXCHANGE)
         new_initial_capital = st.number_input("Capital initial (€)", min_value=0.0, value=initial_capital, step=1000.0)
-        new_exchange = st.selectbox("Exchange de référence", ["XNYS", "XPAR", "XHKG", "XTKS"], index=["XNYS", "XPAR", "XHKG", "XTKS"].index(exchange if exchange in {"XNYS", "XPAR", "XHKG", "XTKS"} else DEFAULT_EXCHANGE))
+        new_exchange = st.selectbox("Place de référence", ["XNYS", "XPAR", "XHKG", "XTKS"], index=["XNYS", "XPAR", "XHKG", "XTKS"].index(exchange if exchange in {"XNYS", "XPAR", "XHKG", "XTKS"} else DEFAULT_EXCHANGE))
         base_currency = st.selectbox("Devise de valorisation", ["EUR", "USD", "GBP", "JPY", "CHF"], index=["EUR", "USD", "GBP", "JPY", "CHF"].index(st.session_state["base_currency"]) if st.session_state["base_currency"] in {"EUR","USD","GBP","JPY","CHF"} else 0)
         benchmark_symbol = st.selectbox(
-            "Benchmark comparatif",
+            "Indice comparatif",
             ["SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"],
             index=["SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"].index(st.session_state["benchmark_symbol"])
             if st.session_state["benchmark_symbol"] in {"SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"}
@@ -3546,6 +3964,7 @@ def main() -> None:
         accounting_method = st.selectbox(
             "Méthode comptable",
             ["fifo", "lifo", "average"],
+            format_func=lambda x: {"fifo": "FIFO", "lifo": "LIFO", "average": "Coût moyen pondéré"}.get(x, x),
             index=["fifo", "lifo", "average"].index(st.session_state["accounting_method"]) if st.session_state["accounting_method"] in {"fifo","lifo","average"} else 0,
         )
         if st.button("Enregistrer la configuration", use_container_width=True):
@@ -3601,13 +4020,13 @@ def main() -> None:
             st.rerun()
 
         st.subheader("Flux Temps Réel")
-        live_enabled = st.toggle("Activer cotation live", value=st.session_state["live_enabled"])
+        live_enabled = st.toggle("Activer cotation temps réel", value=st.session_state["live_enabled"])
         live_mode_label = st.radio(
-            "Mode live",
-            ["Polling multi-provider (Polygon/Yahoo)", "WebSocket tick-by-tick (Polygon)"],
+            "Mode temps réel",
+            ["Sondage multi-fournisseurs (Polygon/Yahoo)", "WebSocket tick-by-tick (Polygon)"],
             index=0 if st.session_state["live_mode"] == "polling" else 1,
         )
-        live_mode = "polling" if live_mode_label.startswith("Polling") else "websocket"
+        live_mode = "polling" if live_mode_label.startswith("Sondage") else "websocket"
         min_refresh = 1 if live_mode == "websocket" else 5
         refresh_seconds = st.slider(
             "Fréquence de rafraîchissement UI (secondes)",
@@ -3616,14 +4035,14 @@ def main() -> None:
             value=max(min_refresh, int(st.session_state["refresh_seconds"])),
         )
         realtime_symbols = st.multiselect(
-            "Actifs sélectionnés (live)",
+            "Actifs sélectionnés (temps réel)",
             options=universe_symbols,
             default=[s for s in st.session_state["realtime_symbols"] if s in universe_symbols],
         )
         polygon_help = (
             "Utilise POLYGON_API_KEY ou colle la clé ici pour activer le flux tick-by-tick."
             if live_mode == "websocket"
-            else "Optionnel en mode polling: Polygon est utilisé en priorité pour les tickers US, puis Yahoo/backup."
+            else "Optionnel en mode sondage: Polygon est utilisé en priorité pour les tickers US, puis Yahoo/secours."
         )
         polygon_api_key = st.text_input(
             "Clé API Polygon",
@@ -3637,32 +4056,32 @@ def main() -> None:
         if not realtime_symbols:
             realtime_symbols = DEFAULT_REALTIME_SYMBOLS.copy()
 
-        st.subheader("Qualité Snapshots")
+        st.subheader("Qualité des instantanés")
         snapshot_min_seconds = st.slider(
-            "Intervalle min snapshots (sec)",
+            "Intervalle min instantanés (sec)",
             min_value=1,
             max_value=120,
             value=int(st.session_state["snapshot_min_seconds"]),
         )
         snapshot_min_delta = st.number_input(
-            "Seuil variation min snapshot",
+            "Seuil variation min instantané",
             min_value=0.01,
             max_value=1000.0,
             value=float(st.session_state["snapshot_min_delta"]),
             step=0.5,
         )
-        ws_stale_seconds = st.slider("Timeout flux WS (sec)", min_value=5, max_value=120, value=int(st.session_state["ws_stale_seconds"]))
+        ws_stale_seconds = st.slider("Seuil obsolescence flux WS (sec)", min_value=5, max_value=120, value=int(st.session_state["ws_stale_seconds"]))
 
         st.subheader("Simulation exécution")
         trade_slippage_bps = st.number_input(
-            "Slippage ordre (bps)",
+            "Glissement ordre (bps)",
             min_value=0.0,
             max_value=250.0,
             value=float(st.session_state["trade_slippage_bps"]),
             step=0.5,
         )
         trade_spread_bps = st.number_input(
-            "Spread ordre (bps)",
+            "Écart achat/vente ordre (bps)",
             min_value=0.0,
             max_value=250.0,
             value=float(st.session_state["trade_spread_bps"]),
@@ -3674,16 +4093,16 @@ def main() -> None:
         max_sector_pct = st.slider("Max par secteur (%)", min_value=10.0, max_value=100.0, value=float(st.session_state["max_sector_pct"]))
         max_zone_pct = st.slider("Max par zone (%)", min_value=10.0, max_value=100.0, value=float(st.session_state["max_zone_pct"]))
 
-        st.subheader("Paramètres Backtest")
+        st.subheader("Paramètres simulation historique")
         backtest_fees_bps = st.number_input(
-            "Frais backtest (bps)",
+            "Frais simulation (bps)",
             min_value=0.0,
             max_value=300.0,
             value=float(st.session_state["backtest_fees_bps"]),
             step=1.0,
         )
         backtest_slippage_bps = st.number_input(
-            "Slippage backtest (bps)",
+            "Glissement simulation (bps)",
             min_value=0.0,
             max_value=300.0,
             value=float(st.session_state["backtest_slippage_bps"]),
@@ -3692,7 +4111,7 @@ def main() -> None:
 
         st.subheader("Alertes")
         alert_loss_pct = st.number_input("Alerte perte (%)", min_value=-100.0, max_value=0.0, value=float(st.session_state["alert_loss_pct"]), step=0.5)
-        alert_drawdown_pct = st.number_input("Alerte drawdown (%)", min_value=-100.0, max_value=0.0, value=float(st.session_state["alert_drawdown_pct"]), step=0.5)
+        alert_drawdown_pct = st.number_input("Alerte repli maximal (%)", min_value=-100.0, max_value=0.0, value=float(st.session_state["alert_drawdown_pct"]), step=0.5)
         alert_gain_pct = st.number_input("Alerte gain (%)", min_value=0.0, max_value=500.0, value=float(st.session_state["alert_gain_pct"]), step=0.5)
         alert_webhook_url = st.text_input("Webhook alertes", value=st.session_state["alert_webhook_url"])
         alert_email_to = st.text_input("Email alertes", value=st.session_state["alert_email_to"])
@@ -3735,17 +4154,21 @@ def main() -> None:
         set_setting(conn, "alert_gain_pct", str(alert_gain_pct))
         set_setting(conn, "alert_webhook_url", alert_webhook_url.strip())
         set_setting(conn, "alert_email_to", alert_email_to.strip())
-        st.caption(f"Les transactions et snapshots sont persistés dans `{db_path.as_posix()}`.")
+        st.caption(f"Les transactions et instantanés sont persistés dans `{db_path.as_posix()}`.")
+
+    active_tab_hint = get_query_param_scalar("tab", MAIN_TAB_LABELS[0])
+    if active_tab_hint not in MAIN_TAB_LABELS:
+        active_tab_hint = MAIN_TAB_LABELS[0]
 
     show_refresh_logo = False
-    if st.session_state["live_enabled"] and st_autorefresh is not None:
+    if st.session_state["live_enabled"] and st_autorefresh is not None and active_tab_hint == MAIN_TAB_LABELS[0]:
         refresh_count = st_autorefresh(interval=int(st.session_state["refresh_seconds"]) * 1000, key="portfolio-live-refresh")
         prev_count = int(st.session_state.get("last_autorefresh_count", -1))
         show_refresh_logo = refresh_count > 0 and refresh_count != prev_count
         st.session_state["last_autorefresh_count"] = int(refresh_count)
         if show_refresh_logo:
             log_event(conn, "INFO", "refresh_logo_tick", {"refresh_count": int(refresh_count)})
-    render_refresh_logo_animation(show_refresh_logo)
+    render_refresh_logo_animation(show_refresh_logo and active_tab_hint == MAIN_TAB_LABELS[0])
 
     transactions = load_transactions(conn)
     positions_raw = compute_positions(transactions, accounting_method=st.session_state["accounting_method"])
@@ -3787,7 +4210,7 @@ def main() -> None:
         stream_status = polygon_stream.status()
         ws_stale = polygon_stream.is_stale(st.session_state["ws_stale_seconds"])
         if ws_stale:
-            fallback_reason = f"flux WS stale > {st.session_state['ws_stale_seconds']}s"
+            fallback_reason = f"flux WS obsolète > {st.session_state['ws_stale_seconds']}s"
         missing = tuple([s for s in symbols_for_quotes if s not in set(ws_quotes.get("symbol", pd.Series(dtype=str)).tolist())])
         if ws_stale:
             missing = symbols_for_quotes
@@ -3916,10 +4339,11 @@ def main() -> None:
     if delivered_count > 0:
         log_event(conn, "INFO", "alerts_delivered", {"count": delivered_count})
 
-    tabs = st.tabs(["Synthèse", "Sélection d'Actifs", "Marchés", "Backtest & Ops", "Assistant Aide à la Décision"])
+    tabs = st.tabs(MAIN_TAB_LABELS)
     target_focus = str(st.session_state.get("pending_tab_focus", "") or "").strip()
+    preferred_tab = target_focus if target_focus in MAIN_TAB_LABELS else active_tab_hint
+    sync_tabs_state(MAIN_TAB_LABELS, preferred_tab=preferred_tab)
     if target_focus:
-        force_active_tab(target_focus)
         st.session_state["pending_tab_focus"] = ""
 
     with tabs[0]:
@@ -3930,14 +4354,14 @@ def main() -> None:
         if st.session_state["live_mode"] == "websocket":
             status_msg = str(stream_status.get("status", "n/a"))
             err = str(stream_status.get("last_error", "") or "")
-            details = f"Mode: WebSocket Polygon ({status_msg})"
+            details = f"Mode: WebSocket Polygon ({localize_text_fr(status_msg)})"
             if err:
                 details += f" | Erreur: {err}"
             if fallback_reason:
-                details += f" | Fallback REST: {fallback_reason}"
+                details += f" | Secours REST: {fallback_reason}"
         else:
-            details = "Mode: Polling multi-provider (Polygon -> Yahoo -> backup)"
-        live_line = "Cotation live indisponible pour le moment."
+            details = "Mode: sondage multi-fournisseurs (Polygon -> Yahoo -> secours)"
+        live_line = "Cotation en temps réel indisponible pour le moment."
         if latest_quote is not None and not pd.isna(latest_quote):
             live_line = f"Dernière mise à jour: {to_display_time(latest_quote.isoformat())}"
         st.caption(f"{details} | {live_line} | Devise portefeuille: {state['base_currency']}")
@@ -3979,9 +4403,9 @@ def main() -> None:
             )
         with d2:
             st.metric("Transactions sauvegardées", f"{len(transactions)}")
-            st.metric("Snapshots sauvegardés", f"{len(snapshots)}")
+            st.metric("Instantanés sauvegardés", f"{len(snapshots)}")
             if fx_rates:
-                st.caption("FX live: " + ", ".join([f"1 {k} = {v:.4f} {state['base_currency']}" for k, v in fx_rates.items() if not np.isnan(v)]))
+                st.caption("FX temps réel: " + ", ".join([f"1 {k} = {v:.4f} {state['base_currency']}" for k, v in fx_rates.items() if not np.isnan(v)]))
 
         st.plotly_chart(create_evolution_chart(snapshots, currency=state["base_currency"]), use_container_width=True)
         st.caption(f"Fraîcheur graphique évolution: {quote_freshness_note}")
@@ -4004,10 +4428,12 @@ def main() -> None:
         p1, p2 = st.columns(2)
         with p1:
             st.plotly_chart(create_pnl_contribution_chart(holdings, transactions, state["base_currency"]), use_container_width=True)
-            st.caption(f"Fraîcheur contribution PnL: {quote_freshness_note}")
+            st.caption(f"Fraîcheur contribution gain/perte: {quote_freshness_note}")
         with p2:
             st.plotly_chart(create_drawdown_chart(snapshots, currency=state["base_currency"]), use_container_width=True)
-            st.caption(f"Fraîcheur drawdown: {quote_freshness_note}")
+            st.caption(f"Fraîcheur repli maximal: {quote_freshness_note}")
+
+        render_positions_portefeuille(holdings, state["base_currency"], split_factors)
 
     with tabs[1]:
         st.subheader("Univers d'actifs")
@@ -4015,25 +4441,25 @@ def main() -> None:
         for region, region_tab in zip(["USA", "Europe", "Asie", "Pays émergent"], region_tabs):
             with region_tab:
                 region_df = universe_df[universe_df["zone"] == region][["symbol", "name", "asset_type", "sector"]]
-                st.dataframe(region_df, use_container_width=True, hide_index=True)
+                render_dataframe_fr(region_df, use_container_width=True, hide_index=True)
 
         st.markdown("#### Métaux précieux et terres rares")
         metals_df = universe_df[universe_df["asset_type"].isin(["Métal précieux", "Terres rares"])][
             ["symbol", "name", "asset_type", "zone", "sector"]
         ]
-        st.dataframe(metals_df, use_container_width=True, hide_index=True)
+        render_dataframe_fr(metals_df, use_container_width=True, hide_index=True)
 
-        st.markdown("#### Prix unitaires live des actifs sélectionnés")
+        st.markdown("#### Prix unitaires temps réel des actifs sélectionnés")
         live_watch = quotes[quotes["symbol"].isin(st.session_state["realtime_symbols"])].copy() if not quotes.empty else pd.DataFrame()
         if live_watch.empty:
-            st.info("Aucune cotation live disponible pour la sélection actuelle.")
+            st.info("Aucune cotation temps réel disponible pour la sélection actuelle.")
         else:
             live_watch["maj"] = live_watch["quote_time_utc"].apply(to_display_time)
             live_watch["variation_%"] = live_watch["change_pct"].round(2)
             live_watch["age_s"] = pd.to_numeric(live_watch.get("data_age_seconds"), errors="coerce").round(1)
             live_watch["stale_actif"] = live_watch.get("symbol_stale", False).map(lambda v: "Oui" if bool(v) else "Non")
             live_watch["sante_source"] = pd.to_numeric(live_watch.get("source_health_score"), errors="coerce").round(1)
-            st.dataframe(
+            render_dataframe_fr(
                 live_watch[
                     [
                         "symbol",
@@ -4062,8 +4488,8 @@ def main() -> None:
                         "price_context": "Contexte prix",
                         "currency": "Devise",
                         "age_s": "Âge tick (s)",
-                        "stale_actif": "Stale actif",
-                        "sante_source": "Santé source",
+                        "stale_actif": "Actif obsolète",
+                        "sante_source": "Santé du fournisseur",
                         "maj": "Dernière maj",
                         "source": "Source API",
                         "api_error": "Erreur API",
@@ -4084,7 +4510,7 @@ def main() -> None:
             with t2:
                 symbol = st.selectbox("Actif", available_symbols, index=0)
             with t3:
-                order_type = st.selectbox("Type d'ordre", ["MARKET", "LIMIT", "STOP"], format_func=lambda x: x.title())
+                order_type = st.selectbox("Type d'ordre", ["MARKET", "LIMIT", "STOP"], format_func=lambda x: localize_text_fr(x))
             with t4:
                 quantity = st.number_input("Quantité", min_value=0.0, value=1.0, step=1.0)
 
@@ -4120,18 +4546,18 @@ def main() -> None:
                     value=float(price if order_type != "MARKET" and price > 0 else 0.0),
                     step=0.01,
                     disabled=(order_type == "MARKET"),
-                    help="Utilisé pour les ordres LIMIT et STOP.",
+                    help="Utilisé pour les ordres Limite et Stop.",
                 )
             with p3:
                 slippage_bps = st.number_input(
-                    "Slippage (bps)",
+                    "Glissement (bps)",
                     min_value=0.0,
                     value=float(st.session_state["trade_slippage_bps"]),
                     step=0.5,
                 )
             with p4:
                 spread_bps = st.number_input(
-                    "Spread (bps)",
+                    "Écart achat/vente (bps)",
                     min_value=0.0,
                     value=float(st.session_state["trade_spread_bps"]),
                     step=0.5,
@@ -4143,9 +4569,9 @@ def main() -> None:
                 trade_exchange = st.selectbox("Marché", ["XNYS", "XPAR", "XHKG", "XTKS"], index=0)
             with x3:
                 note = st.text_input("Note (optionnelle)")
-            strategy_tag = st.text_input("Tag stratégie", value="manual")
+            strategy_tag = st.text_input("Tag stratégie", value="manuel")
             if price > 0:
-                quote_ctx = str(market_quote.get("price_context", "unknown"))
+                quote_ctx = localize_text_fr(str(market_quote.get("price_context", "unknown")))
                 quote_src = str(market_quote.get("source", "unknown"))
                 quote_at = to_display_time(str(market_quote.get("quote_time_utc", "")))
                 st.caption(f"Cotation utilisée: {price:.4f} {market_currency} | contexte: {quote_ctx} | source: {quote_src} | maj: {quote_at}")
@@ -4241,7 +4667,7 @@ def main() -> None:
                         if exec_status in {"FILLED", "PARTIAL"}:
                             label = (
                                 f"{'Achat' if side == 'BUY' else 'Vente'} {exec_qty:g}/{quantity:g} {symbol} "
-                                f"@ {exec_price:.2f} {quote_currency} ({exec_status})"
+                                f"@ {exec_price:.2f} {quote_currency} ({localize_text_fr(exec_status)})"
                             )
                             st.session_state["pending_snapshot_event"] = {"type": side, "label": label}
                         else:
@@ -4250,74 +4676,21 @@ def main() -> None:
                         fetch_realtime_quotes.clear()
                         fetch_polygon_snapshot_quotes.clear()
                         if exec_status == "PENDING":
-                            st.warning("Ordre enregistré en statut PENDING (condition de prix non déclenchée).")
+                            st.warning("Ordre enregistré en statut En attente (condition de prix non déclenchée).")
                         else:
-                            st.success(f"Transaction enregistrée ({exec_status}).")
+                            st.success(f"Transaction enregistrée ({localize_text_fr(exec_status)}).")
                         st.rerun()
 
-        st.markdown("#### Positions en portefeuille")
-        split_adjusted = {k: v for k, v in split_factors.items() if abs(safe_float(v, 1.0) - 1.0) > 1e-9}
-        if split_adjusted:
-            st.caption(
-                "Ajustements split appliqués automatiquement: "
-                + ", ".join([f"{sym} x{safe_float(fac, 1.0):.4f}" for sym, fac in split_adjusted.items()])
-            )
-        if holdings.empty:
-            st.info("Aucune position ouverte.")
-        else:
-            view = holdings[
-                [
-                    "symbol",
-                    "nom",
-                    "zone",
-                    "secteur",
-                    "type",
-                    "quantite",
-                    "prix_moyen",
-                    "cours",
-                    "devise",
-                    "fx_to_base",
-                    "valeur_marche_devise",
-                    "valeur_marche",
-                    "pnl_latent",
-                    "pnl_realise",
-                    "pnl_total_live",
-                    "pnl_realise_historique",
-                ]
-            ].copy()
-            st.dataframe(
-                view.rename(
-                    columns={
-                        "symbol": "Ticker",
-                        "nom": "Nom",
-                        "zone": "Zone",
-                        "secteur": "Secteur",
-                        "type": "Type",
-                        "quantite": "Quantité",
-                        "prix_moyen": "Prix moyen",
-                        "cours": "Cours",
-                        "devise": "Devise",
-                        "fx_to_base": f"FX->{state['base_currency']}",
-                        "valeur_marche_devise": "Valeur devise",
-                        "valeur_marche": "Valeur marché",
-                        "pnl_latent": "PnL latent (live)",
-                        "pnl_realise": "PnL réalisé (base live)",
-                        "pnl_total_live": "PnL total (live)",
-                        "pnl_realise_historique": "PnL réalisé (historique)",
-                    }
-                ),
-                use_container_width=True,
-                hide_index=True,
-            )
+        render_positions_portefeuille(holdings, state["base_currency"], split_factors)
 
     with tabs[2]:
         st.subheader("Analyse des marchés")
         selected = st.session_state["realtime_symbols"]
-        st.caption("La sélection des actifs live se pilote dans la barre latérale.")
+        st.caption("La sélection des actifs temps réel se pilote dans la barre latérale.")
         st.caption(quote_freshness_note)
         if st.session_state["live_mode"] == "websocket":
             st.caption(
-                f"Flux WebSocket Polygon: {stream_status.get('status', 'n/a')} | "
+                f"Flux WebSocket Polygon: {localize_text_fr(stream_status.get('status', 'n/a'))} | "
                 f"Tickers streamés: {stream_status.get('symbols', 0)}"
             )
         market_quotes = quotes[quotes["symbol"].isin(selected)].copy() if not quotes.empty else pd.DataFrame()
@@ -4329,7 +4702,7 @@ def main() -> None:
             table["age_s"] = pd.to_numeric(table.get("data_age_seconds"), errors="coerce").round(1)
             table["stale_actif"] = table.get("symbol_stale", False).map(lambda v: "Oui" if bool(v) else "Non")
             table["sante_source"] = pd.to_numeric(table.get("source_health_score"), errors="coerce").round(1)
-            st.dataframe(
+            render_dataframe_fr(
                 table[
                     [
                         "symbol",
@@ -4357,8 +4730,8 @@ def main() -> None:
                         "price_context": "Contexte prix",
                         "currency": "Devise",
                         "age_s": "Âge tick (s)",
-                        "stale_actif": "Stale actif",
-                        "sante_source": "Santé source",
+                        "stale_actif": "Actif obsolète",
+                        "sante_source": "Santé du fournisseur",
                         "source": "Source API",
                         "api_error": "Erreur API",
                     }
@@ -4367,14 +4740,14 @@ def main() -> None:
                 hide_index=True,
             )
 
-        st.markdown("#### Santé des providers")
+        st.markdown("#### Santé des fournisseurs")
         if provider_health_df.empty:
-            st.caption("Santé providers indisponible.")
+            st.caption("Santé des fournisseurs indisponible.")
         else:
-            st.dataframe(
+            render_dataframe_fr(
                 provider_health_df.sort_values("score", ascending=False).rename(
                     columns={
-                        "provider": "Provider",
+                        "provider": "Fournisseur",
                         "score": "Score santé",
                         "success": "Succès",
                         "error": "Erreurs",
@@ -4400,7 +4773,7 @@ def main() -> None:
                 show["ret_1m"] = (show["ret_1m"] * 100).round(2)
                 show["ret_3m"] = (show["ret_3m"] * 100).round(2)
                 show["vol_3m"] = (show["vol_3m"] * 100).round(2)
-                st.dataframe(
+                render_dataframe_fr(
                     show.rename(columns={"symbol": "Ticker", "ret_1m": "Perf 1m %", "ret_3m": "Perf 3m %", "vol_3m": "Vol 3m %"}),
                     use_container_width=True,
                     hide_index=True,
@@ -4414,7 +4787,7 @@ def main() -> None:
                 show["ret_1m"] = (show["ret_1m"] * 100).round(2)
                 show["ret_3m"] = (show["ret_3m"] * 100).round(2)
                 show["vol_3m"] = (show["vol_3m"] * 100).round(2)
-                st.dataframe(
+                render_dataframe_fr(
                     show.rename(columns={"symbol": "Ticker", "ret_1m": "Perf 1m %", "ret_3m": "Perf 3m %", "vol_3m": "Vol 3m %"}),
                     use_container_width=True,
                     hide_index=True,
@@ -4434,39 +4807,39 @@ def main() -> None:
                 st.markdown(f"- [{title}]({link})  \n  `{published}`")
 
     with tabs[3]:
-        st.subheader("Backtest & Opérations")
-        st.caption("Simulation historique, replay des snapshots, alertes et logs techniques.")
+        st.subheader("Simulation & Opérations")
+        st.caption("Simulation historique, relecture des instantanés, alertes et logs techniques.")
         with st.expander("À quoi sert cet onglet ? (version simple)", expanded=False):
             st.markdown(
                 """
                 Cet onglet sert à tester et piloter ton portefeuille sans toucher au réel.
 
-                - `Backtest`: simule ce qui se serait passé dans le passé avec une stratégie (ex: achat long terme, stratégie SMA50).
-                - `Replay snapshots`: rejoue l'historique de la valeur de ton portefeuille comme une timeline.
-                - `Alertes récentes`: liste les avertissements automatiques (perte, drawdown, concentration).
+                - `Simulation historique (backtest)`: simule ce qui se serait passé dans le passé avec une stratégie (ex: achat long terme, stratégie SMA50).
+                - `Relecture des instantanés`: rejoue l'historique de la valeur de ton portefeuille comme une timeline.
+                - `Alertes récentes`: liste les avertissements automatiques (perte, repli maximal, concentration).
                 - `Logs techniques`: journal interne utile pour comprendre ce qui s'est passé dans l'application.
                 """
             )
 
         bt1, bt2, bt3, bt4 = st.columns(4)
         with bt1:
-            bt_strategy = st.selectbox("Stratégie", ["buy_hold", "sma50"], format_func=lambda x: "Buy & Hold équipondéré" if x == "buy_hold" else "SMA50 dynamique")
+            bt_strategy = st.selectbox("Stratégie", ["buy_hold", "sma50"], format_func=lambda x: "Achat & conservation équipondéré" if x == "buy_hold" else "SMA50 dynamique")
         with bt2:
             bt_start = st.date_input("Début", value=pd.Timestamp.now(tz="UTC").date() - pd.Timedelta(days=365 * 3))
         with bt3:
             bt_end = st.date_input("Fin", value=pd.Timestamp.now(tz="UTC").date())
         with bt4:
             bt_benchmark = st.selectbox(
-                "Benchmark",
+                "Indice de référence",
                 ["SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"],
                 index=["SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"].index(st.session_state["benchmark_symbol"])
                 if st.session_state["benchmark_symbol"] in {"SPY", "EWJ", "EEM", "VGK", "QQQ", "VTI", "ACWI"}
                 else 0,
             )
-        bt_symbols = st.multiselect("Actifs backtest", options=universe_symbols, default=st.session_state["realtime_symbols"])
+        bt_symbols = st.multiselect("Actifs de simulation", options=universe_symbols, default=st.session_state["realtime_symbols"])
         b2, b3, b4 = st.columns(3)
         with b2:
-            bt_capital = st.number_input("Capital initial backtest", min_value=1.0, value=float(state["initial_capital"]), step=1000.0)
+            bt_capital = st.number_input("Capital initial de simulation", min_value=1.0, value=float(state["initial_capital"]), step=1000.0)
         with b3:
             bt_exchange = st.selectbox(
                 "Calendrier marché",
@@ -4478,9 +4851,9 @@ def main() -> None:
         with b4:
             st.caption(
                 f"Coûts intégrés: frais {float(st.session_state['backtest_fees_bps']):.1f} bps "
-                f"+ slippage {float(st.session_state['backtest_slippage_bps']):.1f} bps"
+                f"+ glissement {float(st.session_state['backtest_slippage_bps']):.1f} bps"
             )
-        if st.button("Lancer backtest", use_container_width=True):
+        if st.button("Lancer la simulation", use_container_width=True):
             if bt_start >= bt_end:
                 st.error("La date de début doit être antérieure à la date de fin.")
             else:
@@ -4496,7 +4869,7 @@ def main() -> None:
                     slippage_bps=float(st.session_state["backtest_slippage_bps"]),
                 )
                 if curve.empty:
-                    st.error("Backtest indisponible (données manquantes).")
+                    st.error("Simulation indisponible (données manquantes).")
                 else:
                     curve_records = dataframe_records_json_safe(curve)
                     cursor = conn.execute(
@@ -4528,7 +4901,7 @@ def main() -> None:
                         "backtest_run",
                         {"id": run_id, "strategy": bt_strategy, "symbols": bt_symbols, "benchmark": bt_benchmark},
                     )
-                    st.success("Backtest enregistré.")
+                    st.success("Simulation enregistrée.")
                     st.session_state["backtest_result"] = {
                         "id": run_id,
                         "strategy": bt_strategy,
@@ -4543,7 +4916,7 @@ def main() -> None:
                         "currency": state["base_currency"],
                         "created_at": utc_now_iso(),
                     }
-                    st.session_state["pending_tab_focus"] = "Backtest & Ops"
+                    st.session_state["pending_tab_focus"] = "Simulation & Opérations"
                     st.rerun()
 
         backtest_result = st.session_state.get("backtest_result")
@@ -4551,23 +4924,23 @@ def main() -> None:
             st.markdown("<div class='backtest-panel'>", unsafe_allow_html=True)
             bt_title_col, bt_close_col = st.columns([20, 1])
             with bt_title_col:
-                st.markdown("<div class='backtest-panel-title'>Résultat backtest (persistant)</div>", unsafe_allow_html=True)
+                st.markdown("<div class='backtest-panel-title'>Résultat de simulation (persistant)</div>", unsafe_allow_html=True)
                 st.caption(
-                    f"Run: `#{backtest_result.get('id', '')}` | "
+                    f"Exécution: `#{backtest_result.get('id', '')}` | "
                     f"Stratégie: `{backtest_result.get('strategy', '')}` | "
                     f"Période: {backtest_result.get('start', '')} -> {backtest_result.get('end', '')} | "
                     f"Actifs: {backtest_result.get('symbols_csv', '')} | "
-                    f"Benchmark: {backtest_result.get('benchmark', '')} | "
-                    f"Exchange: {backtest_result.get('exchange', '')}"
+                    f"Indice de référence: {backtest_result.get('benchmark', '')} | "
+                    f"Place: {backtest_result.get('exchange', '')}"
                 )
             with bt_close_col:
-                if st.button("✕", key="close_backtest_panel", help="Fermer le résultat du backtest"):
+                if st.button("✕", key="close_backtest_panel", help="Fermer le résultat de la simulation"):
                     st.session_state["backtest_result"] = None
-                    st.session_state["pending_tab_focus"] = "Backtest & Ops"
+                    st.session_state["pending_tab_focus"] = "Simulation & Opérations"
                     st.rerun()
 
             bt_metrics = backtest_result.get("metrics", {})
-            st.dataframe(pd.DataFrame([bt_metrics]), use_container_width=True, hide_index=True)
+            render_dataframe_fr(pd.DataFrame([bt_metrics]), use_container_width=True, hide_index=True)
             bt_curve_raw = backtest_result.get("curve", [])
             bt_curve_df = pd.DataFrame(bt_curve_raw)
             if not bt_curve_df.empty and "date" in bt_curve_df.columns:
@@ -4581,7 +4954,7 @@ def main() -> None:
                         y=bt_curve_df["equity"],
                         mode="lines",
                         line={"color": "#103b88", "width": 2.6},
-                        name="Equity",
+                        name="Capital",
                     )
                 )
                 dd_series = pd.to_numeric(bt_curve_df["drawdown"], errors="coerce") * 100
@@ -4593,7 +4966,7 @@ def main() -> None:
                         line={"color": "#d93025", "width": 2.0},
                         fill="tozeroy",
                         fillcolor="rgba(217,48,37,0.18)",
-                        name="Drawdown %",
+                        name="Repli maximal %",
                         yaxis="y2",
                     )
                 )
@@ -4605,13 +4978,13 @@ def main() -> None:
                             y=recovery_dd,
                             mode="lines",
                             line={"color": "#0f9d58", "width": 1.8},
-                            name="Recovery zone",
+                            name="Zone de récupération",
                             yaxis="y2",
                         )
                     )
                 apply_plot_theme(
                     fig_bt,
-                    title="Backtest - Courbe de capital et drawdown",
+                    title="Backtest - Courbe de capital et repli maximal",
                     xaxis_title="Date",
                     yaxis_title=f"Capital ({backtest_result.get('currency', state['base_currency'])})",
                     margin_top=52,
@@ -4620,22 +4993,23 @@ def main() -> None:
                     yaxis2={
                         "overlaying": "y",
                         "side": "right",
-                        "title": "Drawdown %",
+                        "title": "Repli maximal %",
                         "showgrid": False,
                         "zeroline": False,
                         "linecolor": "#bfd0ea",
                         "tickfont": {"color": "#102a5c"},
                     }
                 )
+                fig_bt.update_xaxes(tickformat="%b %Y", tickangle=0, nticks=8)
                 st.plotly_chart(fig_bt, use_container_width=True)
                 st.plotly_chart(create_benchmark_relative_chart(bt_curve_df), use_container_width=True)
-                st.caption(f"Fraîcheur vues backtest: {quote_freshness_note}")
+                st.caption(f"Fraîcheur vues simulation: {quote_freshness_note}")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("#### Runs sauvegardés et comparaison")
+        st.markdown("#### Simulations sauvegardées et comparaison")
         runs_df = load_backtest_runs(conn, limit=30)
         if runs_df.empty:
-            st.caption("Aucun run sauvegardé.")
+            st.caption("Aucune simulation sauvegardée.")
         else:
             display_cols = [
                 c
@@ -4643,10 +5017,10 @@ def main() -> None:
                 if c in runs_df.columns
             ]
             if display_cols:
-                st.dataframe(runs_df[display_cols], use_container_width=True, hide_index=True)
+                render_dataframe_fr(runs_df[display_cols], use_container_width=True, hide_index=True)
             options = runs_df["id"].astype(int).tolist()
             compare_default = options[: min(2, len(options))]
-            compare_ids = st.multiselect("Comparer les runs", options=options, default=compare_default)
+            compare_ids = st.multiselect("Comparer les simulations", options=options, default=compare_default)
             if compare_ids:
                 fig_cmp = go.Figure()
                 for run_id in compare_ids:
@@ -4667,11 +5041,11 @@ def main() -> None:
                                 x=dates,
                                 y=y,
                                 mode="lines",
-                                name=f"Run #{int(run_id)} - {row.get('strategy', '')}",
+                                name=f"Exécution #{int(run_id)} - {localize_text_fr(row.get('strategy', ''))}",
                             )
                         )
                 fig_cmp.update_layout(
-                    title="Comparaison visuelle des runs (Base 100)",
+                    title="Comparaison visuelle des simulations (Base 100)",
                     template="plotly_white",
                     xaxis_title="Date",
                     yaxis_title="Performance (base 100)",
@@ -4693,7 +5067,7 @@ def main() -> None:
         else:
             rebal_view = rebalance_plan.copy()
             rebal_view["notional_base"] = pd.to_numeric(rebal_view["notional_base"], errors="coerce").round(2)
-            st.dataframe(
+            render_dataframe_fr(
                 rebal_view.rename(
                     columns={
                         "action": "Action",
@@ -4707,9 +5081,9 @@ def main() -> None:
                 hide_index=True,
             )
 
-        st.markdown("#### Replay snapshots")
+        st.markdown("#### Relecture des instantanés")
         if snapshots.empty:
-            st.info("Aucun snapshot à rejouer.")
+            st.info("Aucun instantané à rejouer.")
         else:
             replay_idx = st.slider("Point dans l'historique", min_value=0, max_value=len(snapshots) - 1, value=len(snapshots) - 1)
             row = snapshots.iloc[replay_idx]
@@ -4724,14 +5098,14 @@ def main() -> None:
         if alerts_df.empty:
             st.caption("Aucune alerte enregistrée.")
         else:
-            st.dataframe(alerts_df[["created_at_utc", "severity", "title", "message", "delivered"]], use_container_width=True, hide_index=True)
+            render_dataframe_fr(alerts_df[["created_at_utc", "severity", "title", "message", "delivered"]], use_container_width=True, hide_index=True)
 
         st.markdown("#### Logs techniques")
         logs_df = load_recent_logs(conn, limit=60)
         if logs_df.empty:
             st.caption("Aucun log applicatif.")
         else:
-            st.dataframe(logs_df, use_container_width=True, hide_index=True)
+            render_dataframe_fr(logs_df, use_container_width=True, hide_index=True)
 
     with tabs[4]:
         st.subheader("Assistant IA d'aide à la décision")
@@ -4803,7 +5177,7 @@ def main() -> None:
             st.write(st.session_state["assistant_output"])
         if st.session_state["last_structured_recs"]:
             st.markdown("#### Plan d'actions structuré")
-            st.dataframe(pd.DataFrame(st.session_state["last_structured_recs"]), use_container_width=True, hide_index=True)
+            render_dataframe_fr(pd.DataFrame(st.session_state["last_structured_recs"]), use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
