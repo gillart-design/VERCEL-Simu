@@ -5535,7 +5535,6 @@ def main() -> None:
                 "Point dans l'historique",
                 min_value=0,
                 max_value=max_idx,
-                value=prev_idx_int,
                 key=replay_key,
             )
             row = snapshots.iloc[replay_idx]
