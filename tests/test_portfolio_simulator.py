@@ -102,6 +102,78 @@ def test_trade_risk_blocks_cash_shortage() -> None:
     assert any("Cash insuffisant" in e for e in errors)
 
 
+def test_trade_risk_handles_empty_holdings_without_columns() -> None:
+    holdings = pd.DataFrame()
+    errors = app.check_trade_risk(
+        side="BUY",
+        symbol="AAPL",
+        quantity=1.0,
+        price=100.0,
+        fees=0.0,
+        cash=1000.0,
+        holdings=holdings,
+        base_currency="EUR",
+        fx_to_base=1.0,
+        max_line_pct=100.0,
+        max_sector_pct=100.0,
+        max_zone_pct=100.0,
+    )
+    assert isinstance(errors, list)
+
+
+def test_resolve_quick_sell_quantity_modes() -> None:
+    qty_total, msg_total = app.resolve_quick_sell_quantity(
+        mode="position_totale",
+        held_qty=10.0,
+        held_value_base=1000.0,
+        unit_price_base=100.0,
+        qty_input=0.0,
+        amount_input=0.0,
+        pct_input=0.0,
+    )
+    assert qty_total == 10.0
+    assert msg_total == ""
+
+    qty_amount, msg_amount = app.resolve_quick_sell_quantity(
+        mode="montant_base",
+        held_qty=10.0,
+        held_value_base=1000.0,
+        unit_price_base=100.0,
+        qty_input=0.0,
+        amount_input=250.0,
+        pct_input=0.0,
+    )
+    assert qty_amount == 2.5
+    assert msg_amount == ""
+
+    qty_cap, msg_cap = app.resolve_quick_sell_quantity(
+        mode="montant_base",
+        held_qty=10.0,
+        held_value_base=1000.0,
+        unit_price_base=100.0,
+        qty_input=0.0,
+        amount_input=1500.0,
+        pct_input=0.0,
+    )
+    assert qty_cap == 10.0
+    assert "ramenée" in msg_cap
+
+
+def test_create_evolution_chart_single_point_has_trace() -> None:
+    snaps = pd.DataFrame(
+        [
+            {
+                "captured_at_utc": pd.Timestamp("2026-03-05T12:00:00Z"),
+                "portfolio_value": 100000.0,
+                "event_type": "INIT",
+                "event_label": "Init",
+            }
+        ]
+    )
+    fig = app.create_evolution_chart(snaps, currency="EUR")
+    assert len(fig.data) >= 1
+
+
 def test_polygon_symbol_supported() -> None:
     assert app.polygon_symbol_supported("AAPL")
     assert not app.polygon_symbol_supported("MC.PA")

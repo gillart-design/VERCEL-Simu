@@ -48,7 +48,15 @@ APP_SUBTITLE = "Suivi dynamique, répartition géographique/sectorielle et assis
 MAIN_TAB_LABELS = ["Synthèse", "Sélection d'Actifs", "Marchés", "Simulation & Opérations", "Assistant Aide à la Décision"]
 AUTO_REFRESH_ALLOWED_TABS = {"Synthèse", "Marchés"}
 DEFAULT_INITIAL_CAPITAL = 100_000.0
-DEFAULT_EXCHANGE = "XNYS"
+DEFAULT_EXCHANGE = "TRLS"
+EXCHANGE_OPTIONS = ["TRLS", "XPAR", "XNYS", "XTKS", "XHKG"]
+EXCHANGE_LABELS = {
+    "TRLS": "TRLS (Trade Republic / LSX 07:30-23:00)",
+    "XPAR": "XPAR (Paris 09:00-17:30)",
+    "XNYS": "XNYS (New York)",
+    "XTKS": "XTKS (Tokyo)",
+    "XHKG": "XHKG (Hong Kong)",
+}
 DEFAULT_REFRESH_SECONDS = 10
 DEFAULT_REALTIME_SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "GLD", "EEM"]
 DEFAULT_LIVE_MODE = "polling"
@@ -501,24 +509,36 @@ def localize_dataframe_fr(df: pd.DataFrame) -> pd.DataFrame:
 
 def render_dataframe_fr(data: pd.DataFrame, **kwargs) -> None:
     localized = localize_dataframe_fr(data)
-    try:
-        styled = localized.style.set_table_styles(
-            [
-                {"selector": "table", "props": [("background-color", "#ffffff"), ("color", "#102a5c")]},
-                {"selector": "th", "props": [("background-color", "#edf4ff"), ("color", "#102a5c"), ("font-weight", "700")]},
-                {"selector": "td", "props": [("background-color", "#ffffff"), ("color", "#102a5c")]},
-            ],
-            overwrite=False,
-        ).set_properties(
-            **{
-                "background-color": "#ffffff",
-                "color": "#102a5c",
-                "border-color": "#d7e3f8",
-            }
+    hide_index = bool(kwargs.get("hide_index", True))
+    height = kwargs.get("height")
+    wrapper_style = "overflow:auto;"
+    if isinstance(height, int) and height > 0:
+        wrapper_style += f"max-height:{height}px;"
+
+    if localized is None:
+        localized = pd.DataFrame()
+    if localized.empty:
+        cols = list(localized.columns)
+        if cols:
+            header = "".join([f"<th>{c}</th>" for c in cols])
+            empty_row = f"<tr><td colspan='{len(cols)}'>Aucune donnée</td></tr>"
+            table_html = (
+                f"<table class='lc-table'><thead><tr>{header}</tr></thead><tbody>{empty_row}</tbody></table>"
+            )
+        else:
+            table_html = "<div class='lc-empty-table'>Aucune donnée</div>"
+    else:
+        table_html = localized.to_html(
+            index=(not hide_index),
+            classes=["lc-table"],
+            border=0,
+            escape=False,
+            justify="left",
         )
-        st.dataframe(styled, **kwargs)
-    except Exception:
-        st.dataframe(localized, **kwargs)
+    st.markdown(
+        f"<div class='lc-table-wrap' style='{wrapper_style}'>{table_html}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def parse_symbols_csv(raw: str, allowed: set[str] | None = None) -> list[str]:
@@ -533,6 +553,11 @@ def symbols_to_csv(symbols: list[str]) -> str:
     return ",".join(list(dict.fromkeys([s.strip().upper() for s in symbols if s.strip()])))
 
 
+def exchange_index(exchange_code: str) -> int:
+    code = str(exchange_code or "").upper()
+    return EXCHANGE_OPTIONS.index(code) if code in EXCHANGE_OPTIONS else EXCHANGE_OPTIONS.index(DEFAULT_EXCHANGE)
+
+
 def default_mode_settings(allowed_symbols: list[str]) -> dict[str, str]:
     allowed = {s.strip().upper() for s in allowed_symbols if s and s.strip()}
     symbols = [s for s in DEFAULT_REALTIME_SYMBOLS if s in allowed]
@@ -541,6 +566,7 @@ def default_mode_settings(allowed_symbols: list[str]) -> dict[str, str]:
     if not symbols:
         symbols = DEFAULT_REALTIME_SYMBOLS.copy()
     return {
+        "exchange": DEFAULT_EXCHANGE,
         "live_enabled": "1",
         "live_mode": "polling",
         "auto_refresh_enabled": "0",
@@ -2406,279 +2432,286 @@ def render_css() -> None:
         """
         <style>
         :root {
-            --navy-950:#041022;
-            --navy-900:#071733;
-            --navy-850:#0b2454;
-            --navy-800:#0f2f79;
-            --navy-700:#1a4aa5;
-            --surface:#ffffff;
-            --surface-soft:#f3f7ff;
-            --line-soft:#cfdcf2;
-            --text-main:#102a5c;
-            --text-muted:#4f6388;
-            --gain:#0f9d58;
-            --loss:#d93025;
+            --lc-navy-950:#04122d;
+            --lc-navy-900:#0a2558;
+            --lc-navy-800:#123874;
+            --lc-navy-700:#1b4da0;
+            --lc-white:#ffffff;
+            --lc-bg:#edf3ff;
+            --lc-bg-soft:#f7faff;
+            --lc-line:#cbdcf7;
+            --lc-text:#102a5c;
+            --lc-text-soft:#5c739d;
+            --lc-green:#0f9d58;
+            --lc-red:#d93025;
             --card-radius:20px;
+            --gdg-bg-cell: #ffffff;
+            --gdg-bg-cell-medium: #f8fbff;
+            --gdg-bg-header: #edf4ff;
+            --gdg-bg-header-has-focus: #e6f0ff;
+            --gdg-bg-header-hovered: #e6f0ff;
+            --gdg-bg-row-hover: #edf4ff;
+            --gdg-bg-odd: #f8fbff;
+            --gdg-bg-cell-selected: #e7f0ff;
+            --gdg-text-dark: #102a5c;
+            --gdg-text-medium: #284677;
+            --gdg-text-light: #5b739d;
+            --gdg-text-header: #102a5c;
+            --gdg-text-header-selected: #102a5c;
+            --gdg-accent-color: #123874;
+            --gdg-horizontal-border-color: #d7e3f8;
+            --gdg-vertical-border-color: #d7e3f8;
+            --gdg-border-color: #d7e3f8;
         }
-        div[data-testid="stStatusWidget"] {
-            display: none !important;
-        }
+
+        div[data-testid="stStatusWidget"],
         div[data-testid="stSpinner"],
         div[data-testid="stLoadingSpinner"],
         div[data-testid="stAppSkeleton"] {
             display: none !important;
         }
-        .stale-element {
-            opacity: 1 !important;
-            filter: none !important;
-        }
-        [data-stale="true"] {
-            opacity: 1 !important;
-            filter: none !important;
-        }
+
         .stApp {
             background:
-                radial-gradient(circle at 12% 8%, rgba(17, 73, 170, 0.08), transparent 36%),
-                linear-gradient(180deg, #f9fbff 0%, #edf3ff 100%);
-            color: var(--text-main);
+                radial-gradient(circle at 8% 10%, rgba(19, 77, 160, 0.09), transparent 38%),
+                linear-gradient(180deg, #f8fbff 0%, var(--lc-bg) 100%);
+            color: var(--lc-text);
         }
+
         header[data-testid="stHeader"] {
-            background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-950) 100%);
-            border-bottom: 1px solid #123a82;
+            background: linear-gradient(180deg, var(--lc-navy-900) 0%, var(--lc-navy-950) 100%);
+            border-bottom: 1px solid #1d468a;
         }
+
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #030f25 0%, #06173a 100%);
-            border-right: 1px solid rgba(148, 163, 184, 0.25);
+            background: linear-gradient(180deg, #030f25 0%, #07204c 100%);
+            border-right: 1px solid rgba(173, 196, 234, 0.25);
         }
         section[data-testid="stSidebar"] * {
-            color: #e8eefb !important;
-        }
-        section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] {
-            color: #d8e2fb !important;
-            background: transparent !important;
+            color: #e9f1ff !important;
         }
         section[data-testid="stSidebar"] .stCaption {
-            color: #b8c6e6 !important;
+            color: #bfd0ef !important;
         }
+        section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] {
+            color: #d7e5ff !important;
+        }
+
         section[data-testid="stSidebar"] .stNumberInput input,
         section[data-testid="stSidebar"] .stTextInput input,
-        section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"],
         section[data-testid="stSidebar"] .stTextArea textarea,
+        section[data-testid="stSidebar"] .stDateInput input,
+        section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"],
         section[data-testid="stSidebar"] [data-baseweb="tag"] {
-            background: #0d1f47 !important;
-            border-color: #1f3c78 !important;
-            color: #f7faff !important;
-        }
-        section[data-testid="stSidebar"] [data-baseweb="tag"] span {
-            color: #f7faff !important;
-        }
-        section[data-testid="stSidebar"] .stButton > button {
-            background: linear-gradient(160deg, #1d3f95 0%, #1a53c2 100%) !important;
-            border: 1px solid #2f65d2 !important;
-            color: #f7faff !important;
-        }
-        section[data-testid="stSidebar"] .stButton > button:hover {
-            filter: brightness(1.05);
+            background: #06193f !important;
+            color: #f3f8ff !important;
+            border: 1px solid #2a4f8e !important;
         }
         section[data-testid="stSidebar"] [data-baseweb="slider"] div[role="slider"] {
-            background: #2a66d4 !important;
-            border-color: #2a66d4 !important;
+            background: #2f6ccc !important;
+            border-color: #2f6ccc !important;
         }
-        div[data-testid="stAppViewContainer"] .stNumberInput input,
-        div[data-testid="stAppViewContainer"] .stTextInput input,
-        div[data-testid="stAppViewContainer"] .stTextArea textarea,
-        div[data-testid="stAppViewContainer"] .stDateInput input,
-        div[data-testid="stAppViewContainer"] .stSelectbox div[data-baseweb="select"] {
-            background: #ffffff !important;
-            border: 1px solid #c6d7f3 !important;
-            color: #102a5c !important;
-        }
-        div[data-testid="stAppViewContainer"] [data-baseweb="tag"] {
-            background: #eaf2ff !important;
-            border: 1px solid #bfd3f5 !important;
-            color: #14386f !important;
-        }
-        div[data-testid="stAppViewContainer"] [data-baseweb="tag"] span {
-            color: #14386f !important;
-        }
-        div[data-testid="stAppViewContainer"] .stButton > button {
-            background: linear-gradient(160deg, #0f2f79 0%, #15479b 100%) !important;
-            border: 1px solid #1f55b1 !important;
-            color: #ffffff !important;
-        }
-        div[data-testid="stAppViewContainer"] .stButton > button:hover {
-            filter: brightness(1.06);
-        }
-        div[data-testid="stAppViewContainer"] [data-baseweb="slider"] div[role="slider"] {
-            background: #0f2f79 !important;
-            border-color: #0f2f79 !important;
-        }
-        div[data-testid="stAppViewContainer"] .stExpander {
-            background: #ffffff;
-            border: 1px solid #ccdbf3;
-            border-radius: 12px;
-        }
-        div[data-testid="stAppViewContainer"] .stExpander summary {
-            color: #102a5c !important;
-            font-weight: 700;
-        }
-        div[data-testid="stAppViewContainer"] .block-container,
-        div[data-testid="stAppViewContainer"] .block-container h1,
-        div[data-testid="stAppViewContainer"] .block-container h2,
-        div[data-testid="stAppViewContainer"] .block-container h3,
-        div[data-testid="stAppViewContainer"] .block-container h4,
-        div[data-testid="stAppViewContainer"] .block-container h5,
-        div[data-testid="stAppViewContainer"] .block-container h6,
-        div[data-testid="stAppViewContainer"] .block-container p,
-        div[data-testid="stAppViewContainer"] .block-container li,
-        div[data-testid="stAppViewContainer"] .block-container strong,
-        div[data-testid="stAppViewContainer"] .block-container em,
-        div[data-testid="stAppViewContainer"] .block-container label,
-        div[data-testid="stAppViewContainer"] .block-container small,
-        div[data-testid="stAppViewContainer"] .block-container code {
-            color: #102a5c !important;
-        }
-        .stApp {
-            --gdg-bg-cell: #ffffff;
-            --gdg-bg-cell-medium: #f7faff;
-            --gdg-bg-header: #edf4ff;
-            --gdg-bg-header-has-focus: #e7f0ff;
-            --gdg-bg-header-hovered: #e7f0ff;
-            --gdg-bg-row-hover: #eef4ff;
-            --gdg-bg-odd: #f8fbff;
-            --gdg-text-dark: #102a5c;
-            --gdg-text-medium: #2d4778;
-            --gdg-text-light: #5c739d;
-            --gdg-text-header: #102a5c;
-            --gdg-text-header-selected: #102a5c;
-            --gdg-bg-cell-selected: #e7f0ff;
-            --gdg-accent-color: #0f2f79;
-            --gdg-horizontal-border-color: #d7e3f8;
-            --gdg-vertical-border-color: #d7e3f8;
-            --gdg-border-color: #d7e3f8;
-            --gdg-header-font-style: 700 13px "Source Sans Pro", sans-serif;
-        }
-        button[data-baseweb="tab"] {
-            color: #213d71 !important;
-        }
-        div[data-testid="stTabs"] [data-baseweb="tab-list"] {
-            gap: .25rem;
-            border-bottom: 1px solid #c7d5ef;
-            padding-bottom: .15rem;
-        }
-        div[data-testid="stTabs"] [data-baseweb="tab"] {
-            background: #eef4ff;
-            border: 1px solid #cfddf6;
-            border-radius: 10px 10px 0 0;
-            padding: .35rem .85rem;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            color: var(--navy-850) !important;
-            background: #ffffff !important;
-            border: 1px solid #b9cff1 !important;
-            border-bottom: 2px solid #d93025 !important;
-        }
-        div[data-testid="stDataFrame"] {
-            background: var(--surface) !important;
-            border: 1px solid var(--line-soft);
-            border-radius: 14px;
-        }
-        div[data-testid="stDataFrame"],
-        div[data-testid="stDataFrame"] > div,
-        div[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {
-            --gdg-bg-cell: #ffffff !important;
-            --gdg-bg-cell-medium: #f7faff !important;
-            --gdg-bg-header: #edf4ff !important;
-            --gdg-bg-header-has-focus: #e7f0ff !important;
-            --gdg-bg-header-hovered: #e7f0ff !important;
-            --gdg-bg-row-hover: #eef4ff !important;
-            --gdg-bg-odd: #f8fbff !important;
-            --gdg-bg-cell-selected: #e7f0ff !important;
-            --gdg-accent-color: #0f2f79 !important;
-            --gdg-text-dark: #102a5c !important;
-            --gdg-text-medium: #2d4778 !important;
-            --gdg-text-light: #5c739d !important;
-            --gdg-text-header: #102a5c !important;
-            --gdg-text-header-selected: #102a5c !important;
-            --gdg-horizontal-border-color: #d7e3f8 !important;
-            --gdg-vertical-border-color: #d7e3f8 !important;
-            --gdg-border-color: #d7e3f8 !important;
-        }
-        div[data-testid="stDataFrame"] * {
-            color: var(--text-main) !important;
-        }
-        div[data-testid="stDataFrame"] canvas {
-            background: #ffffff !important;
-        }
-        div[data-testid="stDataFrame"] [class*="glide"],
-        div[data-testid="stDataFrame"] [class*="glide-"],
-        div[data-testid="stDataFrame"] [class*="gdg"] {
-            background: #ffffff !important;
-            color: #102a5c !important;
-        }
-        div[data-testid="stDataFrame"] [class*="header"] {
-            background: #edf4ff !important;
-            color: #102a5c !important;
-        }
-        div[data-testid="stMarkdownContainer"] table {
-            background: #ffffff !important;
-            color: #102a5c !important;
-            border-collapse: collapse !important;
-            width: 100%;
-        }
-        div[data-testid="stMarkdownContainer"] table th {
-            background: #edf4ff !important;
-            color: #102a5c !important;
-            border: 1px solid #d7e3f8 !important;
-            font-weight: 700 !important;
-        }
-        div[data-testid="stMarkdownContainer"] table td {
-            background: #ffffff !important;
-            color: #102a5c !important;
-            border: 1px solid #d7e3f8 !important;
-        }
-        div[data-testid="stAppViewContainer"] [role="listbox"] {
-            background: #ffffff !important;
-            color: #102a5c !important;
-            border: 1px solid #c6d7f3 !important;
-        }
-        div[data-testid="stAppViewContainer"] [role="option"] {
-            background: #ffffff !important;
-            color: #102a5c !important;
-        }
-        div[data-testid="stAppViewContainer"] [role="option"][aria-selected="true"] {
-            background: #eaf2ff !important;
-            color: #0f2f79 !important;
-        }
-        div[data-testid="stPlotlyChart"] {
-            background: #ffffff !important;
-            border: 1px solid #d7e3f8;
-            border-radius: 14px;
-            padding: 0.2rem;
-        }
-        div[data-testid="stPlotlyChart"] .main-svg,
-        div[data-testid="stPlotlyChart"] .svg-container {
-            background: #ffffff !important;
-        }
+
         div[data-testid="stAppViewContainer"],
+        div[data-testid="stAppViewContainer"] .block-container,
+        div[data-testid="stAppViewContainer"] h1,
+        div[data-testid="stAppViewContainer"] h2,
+        div[data-testid="stAppViewContainer"] h3,
+        div[data-testid="stAppViewContainer"] h4,
+        div[data-testid="stAppViewContainer"] h5,
+        div[data-testid="stAppViewContainer"] h6,
         div[data-testid="stAppViewContainer"] p,
         div[data-testid="stAppViewContainer"] li,
         div[data-testid="stAppViewContainer"] span,
         div[data-testid="stAppViewContainer"] label,
         div[data-testid="stAppViewContainer"] small,
-        div[data-testid="stAppViewContainer"] .stMarkdown,
-        div[data-testid="stAppViewContainer"] .stCaption,
-        div[data-testid="stAppViewContainer"] .stAlert,
-        div[data-testid="stAppViewContainer"] .stInfo {
-            color: var(--text-main) !important;
+        div[data-testid="stAppViewContainer"] strong {
+            color: var(--lc-text) !important;
         }
         div[data-testid="stAppViewContainer"] a {
             color: #1b5fb8 !important;
         }
+        div[data-testid="stAppViewContainer"] code {
+            color: #123874 !important;
+            background: #eaf2ff !important;
+            border: 1px solid #cfdef7;
+            border-radius: 6px;
+            padding: 0.08rem 0.34rem;
+        }
+
+        div[data-testid="stAppViewContainer"] .stNumberInput input,
+        div[data-testid="stAppViewContainer"] .stTextInput input,
+        div[data-testid="stAppViewContainer"] .stTextArea textarea,
+        div[data-testid="stAppViewContainer"] .stDateInput input,
+        div[data-testid="stAppViewContainer"] .stSelectbox div[data-baseweb="select"] {
+            background: var(--lc-white) !important;
+            color: var(--lc-text) !important;
+            border: 1px solid var(--lc-line) !important;
+        }
+        div[data-testid="stAppViewContainer"] [data-baseweb="tag"] {
+            background: #eaf2ff !important;
+            color: #123874 !important;
+            border: 1px solid #c6d8f8 !important;
+        }
+
+        div[data-baseweb="popover"] [role="listbox"] {
+            background: #ffffff !important;
+            color: var(--lc-text) !important;
+            border: 1px solid var(--lc-line) !important;
+        }
+        div[data-baseweb="popover"] [role="option"] {
+            background: #ffffff !important;
+            color: var(--lc-text) !important;
+        }
+        div[data-baseweb="popover"] [role="option"][aria-selected="true"] {
+            background: #eaf2ff !important;
+            color: #123874 !important;
+        }
+
+        .stButton > button {
+            background: linear-gradient(160deg, #123874 0%, #1a4ea4 100%) !important;
+            border: 1px solid #2c62bd !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+        .stButton > button * {
+            color: #ffffff !important;
+        }
+        .stButton > button:hover {
+            filter: brightness(1.05);
+        }
+        .stButton > button:disabled {
+            background: #a7bfeb !important;
+            border: 1px solid #9bb5e4 !important;
+            color: #eff4ff !important;
+        }
+        .stButton > button:disabled * {
+            color: #eff4ff !important;
+        }
+
+        div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+            gap: 0.3rem;
+            border-bottom: 1px solid #c8d9f5;
+            padding-bottom: 0.15rem;
+        }
+        button[data-baseweb="tab"] {
+            background: #f2f7ff !important;
+            border: 1px solid #cadcf8 !important;
+            border-radius: 11px 11px 0 0 !important;
+            color: #224379 !important;
+            padding: 0.36rem 0.9rem !important;
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background: #ffffff !important;
+            border: 1px solid #b5cdf2 !important;
+            border-bottom: 2px solid var(--lc-red) !important;
+            color: #0f2f79 !important;
+        }
+
+        div[data-testid="stExpander"] details {
+            background: #ffffff !important;
+            border: 1px solid #c9dcf8 !important;
+            border-radius: 14px !important;
+            overflow: hidden;
+        }
+        div[data-testid="stExpander"] summary {
+            background: #f1f7ff !important;
+            color: #0f2f79 !important;
+            font-weight: 700 !important;
+            border-bottom: 1px solid transparent !important;
+            padding-top: 0.35rem !important;
+            padding-bottom: 0.35rem !important;
+        }
+        div[data-testid="stExpander"] details[open] summary {
+            border-bottom: 1px solid #d4e2f8 !important;
+        }
+        div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] {
+            color: var(--lc-text) !important;
+        }
+
+        .lc-table-wrap {
+            width: 100%;
+            overflow: auto;
+            border: 1px solid #d1e0f8;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 4px 16px rgba(13, 41, 88, 0.06);
+        }
+        .lc-empty-table {
+            padding: 0.75rem 0.9rem;
+            color: var(--lc-text-soft);
+            background: #ffffff;
+        }
+        table.lc-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: #ffffff;
+            color: var(--lc-text);
+            font-size: 0.95rem;
+        }
+        table.lc-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #eef5ff;
+            color: #102a5c;
+            border-bottom: 1px solid #d5e3f8;
+            border-right: 1px solid #e0eaf9;
+            text-align: left;
+            font-weight: 700;
+            padding: 0.55rem 0.6rem;
+            white-space: nowrap;
+        }
+        table.lc-table td {
+            background: #ffffff;
+            color: #102a5c;
+            border-bottom: 1px solid #e7eefb;
+            border-right: 1px solid #eef3fc;
+            padding: 0.5rem 0.6rem;
+            vertical-align: middle;
+        }
+        table.lc-table tbody tr:nth-child(even) td {
+            background: #fbfdff;
+        }
+        table.lc-table th:last-child,
+        table.lc-table td:last-child {
+            border-right: none;
+        }
+        table.lc-table tbody tr:hover td {
+            background: #f2f7ff;
+        }
+
+        div[data-testid="stDataFrame"] {
+            background: #ffffff !important;
+            border: 1px solid #d1e0f8 !important;
+            border-radius: 14px !important;
+        }
+        div[data-testid="stDataFrame"] canvas,
+        div[data-testid="stDataFrame"] [role="grid"] {
+            background: #ffffff !important;
+            color: #102a5c !important;
+        }
+        div[data-testid="stDataFrame"] [role="grid"] * {
+            color: #102a5c !important;
+        }
+
+        div[data-testid="stPlotlyChart"] {
+            background: #ffffff !important;
+            border: 1px solid #d8e4f8;
+            border-radius: 14px;
+            padding: 0.18rem;
+            box-shadow: 0 4px 14px rgba(16, 42, 92, 0.04);
+        }
+        div[data-testid="stPlotlyChart"] .main-svg,
+        div[data-testid="stPlotlyChart"] .svg-container {
+            background: #ffffff !important;
+        }
+
         .backtest-panel {
-            border: 2px solid #d2ddf2;
+            border: 1px solid #d1e0f8;
             border-radius: 16px;
-            background: var(--surface);
+            background: #ffffff;
             padding: 0.9rem 1rem 0.4rem 1rem;
             box-shadow: 0 8px 24px rgba(20, 42, 90, 0.08);
             margin-top: 0.8rem;
@@ -2687,31 +2720,31 @@ def render_css() -> None:
         .backtest-panel-title {
             font-size: 1.05rem;
             font-weight: 700;
-            color: #102a5c;
+            color: #0f2f79;
             margin: 0.2rem 0 0.6rem 0;
         }
         .main-title {
-            color: #102a5c;
+            color: #0f2f79;
             font-size: 2rem;
             font-weight: 800;
             margin-bottom: 0.1rem;
         }
         .subtitle {
-            color:#4b5563;
+            color: #4f6388;
             margin-bottom: 1rem;
         }
         .metric-card {
-            border: 2px solid #d4e0f5;
+            border: 1px solid #cfddf6;
             border-radius: var(--card-radius);
             padding: 1rem 1.1rem;
-            background: var(--surface);
+            background: #ffffff;
             box-shadow: 0 8px 24px rgba(20, 42, 90, 0.08);
             min-height: 170px;
         }
         .metric-card.primary {
-            background: linear-gradient(160deg, var(--navy-850) 0%, var(--navy-800) 100%);
+            background: linear-gradient(160deg, #0f2f79 0%, #123874 100%);
             color: white;
-            border-color: var(--navy-850);
+            border-color: #123874;
         }
         .metric-title {
             font-size: 1.05rem;
@@ -2725,7 +2758,7 @@ def render_css() -> None:
             line-height: 1.05;
         }
         .metric-sub {
-            color: #64748b;
+            color: #5c739d;
             font-size: 1rem;
             margin-bottom: 0.4rem;
         }
@@ -2740,16 +2773,16 @@ def render_css() -> None:
             font-weight: 700;
         }
         .event-pill.gain {
-            background: #dcfce7;
-            color: #166534 !important;
+            background: #d9f7e6;
+            color: #0d7b44 !important;
         }
         .event-pill.loss {
-            background: #fee2e2;
-            color: #991b1b !important;
+            background: #ffe3e3;
+            color: #b42318 !important;
         }
         .event-pill.neutral {
-            background: #e3ebfa;
-            color: #1e3a8a !important;
+            background: #eaf2ff;
+            color: #1f4a9b !important;
         }
         .lc-refresh-badge {
             width: 78px;
@@ -3082,15 +3115,41 @@ def create_evolution_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go
     fig = go.Figure()
     if snapshots.empty:
         apply_plot_theme(fig, title="Aucun instantané disponible")
+        fig.add_annotation(
+            text="Aucune donnée à afficher pour le moment.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"color": "#4f6388", "size": 14},
+        )
         return fig
     points = snapshots.copy()
-    points["captured_local"] = pd.to_datetime(points["captured_at_utc"], utc=True).dt.tz_convert(DISPLAY_TZ)
+    points["captured_local"] = pd.to_datetime(points["captured_at_utc"], errors="coerce", utc=True).dt.tz_convert(DISPLAY_TZ)
+    points["portfolio_value"] = pd.to_numeric(points.get("portfolio_value"), errors="coerce")
+    points = points.dropna(subset=["captured_local", "portfolio_value"]).sort_values("captured_local")
+    if points.empty:
+        apply_plot_theme(fig, title="Aucun instantané exploitable")
+        fig.add_annotation(
+            text="Données d'évolution indisponibles.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"color": "#4f6388", "size": 14},
+        )
+        return fig
+    points = points.drop_duplicates(subset=["captured_local"], keep="last")
+    draw_mode = "lines+markers"
     fig.add_trace(
         go.Scatter(
             x=points["captured_local"],
             y=points["portfolio_value"],
-            mode="lines",
+            mode=draw_mode,
             line={"color": "#103b88", "width": 3},
+            marker={"size": 7, "color": "#103b88"},
             name="Capital total",
         )
     )
@@ -3119,6 +3178,10 @@ def create_evolution_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go
         margin_top=50,
     )
     fig.update_xaxes(nticks=5, tickformat="%H:%M\n%d/%m")
+    if len(points) == 1:
+        only = float(points["portfolio_value"].iloc[0])
+        span = max(abs(only) * 0.005, 1.0)
+        fig.update_yaxes(range=[only - span, only + span])
     return fig
 
 
@@ -3200,7 +3263,22 @@ def create_drawdown_chart(snapshots: pd.DataFrame, currency: str = "EUR") -> go.
 def create_pnl_contribution_chart(holdings: pd.DataFrame, transactions: pd.DataFrame, base_currency: str) -> go.Figure:
     if holdings is None or holdings.empty:
         fig = go.Figure()
-        fig.update_layout(title="Contribution gain/perte indisponible")
+        apply_plot_theme(
+            fig,
+            title="Contribution gain/perte indisponible",
+            xaxis_title="Actif",
+            yaxis_title=f"Contrib. ({base_currency})",
+            margin_top=45,
+        )
+        fig.add_annotation(
+            text="Aucune position ouverte.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"color": "#4f6388", "size": 14},
+        )
         return fig
     h = holdings.copy()
     h["latent"] = pd.to_numeric(h["pnl_latent"], errors="coerce").fillna(0.0)
@@ -3521,8 +3599,9 @@ def render_quick_sell_panel(
 
         trade_exchange = st.selectbox(
             "Marché",
-            ["XNYS", "XPAR", "XHKG", "XTKS"],
-            index=["XNYS", "XPAR", "XHKG", "XTKS"].index(exchange_default) if exchange_default in {"XNYS", "XPAR", "XHKG", "XTKS"} else 0,
+            EXCHANGE_OPTIONS,
+            index=exchange_index(exchange_default),
+            format_func=lambda x: EXCHANGE_LABELS.get(x, x),
             key=f"{key_prefix}_exchange",
         )
         note = st.text_input("Note (optionnelle)", key=f"{key_prefix}_note")
@@ -4353,7 +4432,12 @@ def main() -> None:
         initial_capital = float(get_setting(conn, "initial_capital", str(DEFAULT_INITIAL_CAPITAL)))
         exchange = get_setting(conn, "exchange", DEFAULT_EXCHANGE)
         new_initial_capital = st.number_input("Capital initial (€)", min_value=0.0, value=initial_capital, step=1000.0)
-        new_exchange = st.selectbox("Place de référence", ["XNYS", "XPAR", "XHKG", "XTKS"], index=["XNYS", "XPAR", "XHKG", "XTKS"].index(exchange if exchange in {"XNYS", "XPAR", "XHKG", "XTKS"} else DEFAULT_EXCHANGE))
+        new_exchange = st.selectbox(
+            "Place de référence",
+            EXCHANGE_OPTIONS,
+            index=exchange_index(exchange),
+            format_func=lambda x: EXCHANGE_LABELS.get(x, x),
+        )
         base_currency = st.selectbox("Devise de valorisation", ["EUR", "USD", "GBP", "JPY", "CHF"], index=["EUR", "USD", "GBP", "JPY", "CHF"].index(st.session_state["base_currency"]) if st.session_state["base_currency"] in {"EUR","USD","GBP","JPY","CHF"} else 0)
         benchmark_symbol = st.selectbox(
             "Indice comparatif",
@@ -4940,10 +5024,14 @@ def main() -> None:
         qmap = quotes.set_index("symbol").to_dict(orient="index") if not quotes.empty else {}
         held_qty = holdings.set_index("symbol")["quantite"].to_dict() if not holdings.empty else {}
         available_symbols = sorted(set(universe_df["symbol"].tolist() + list(held_qty.keys())))
+        can_sell = any(float(v) > 0 for v in held_qty.values())
         with st.form("trade_form"):
             t1, t2, t3, t4 = st.columns(4)
             with t1:
-                side = st.selectbox("Action", ["BUY", "SELL"], format_func=lambda x: "Achat" if x == "BUY" else "Vente")
+                side_options = ["BUY", "SELL"] if can_sell else ["BUY"]
+                side = st.selectbox("Action", side_options, format_func=lambda x: "Achat" if x == "BUY" else "Vente")
+                if not can_sell:
+                    st.caption("Vente indisponible tant qu'aucune position n'est ouverte.")
             with t2:
                 symbol = st.selectbox("Actif", available_symbols, index=0)
             with t3:
@@ -5003,7 +5091,12 @@ def main() -> None:
             with x1:
                 fees = st.number_input("Frais", min_value=0.0, value=0.0, step=0.01)
             with x2:
-                trade_exchange = st.selectbox("Marché", ["XNYS", "XPAR", "XHKG", "XTKS"], index=0)
+                trade_exchange = st.selectbox(
+                    "Marché",
+                    EXCHANGE_OPTIONS,
+                    index=exchange_index(get_setting(conn, "exchange", DEFAULT_EXCHANGE)),
+                    format_func=lambda x: EXCHANGE_LABELS.get(x, x),
+                )
             with x3:
                 note = st.text_input("Note (optionnelle)")
             strategy_tag = st.text_input("Tag stratégie", value="manuel")
@@ -5280,10 +5373,9 @@ def main() -> None:
         with b3:
             bt_exchange = st.selectbox(
                 "Calendrier marché",
-                ["XNYS", "XPAR", "XTKS", "XHKG"],
-                index=["XNYS", "XPAR", "XTKS", "XHKG"].index(get_setting(conn, "exchange", DEFAULT_EXCHANGE))
-                if get_setting(conn, "exchange", DEFAULT_EXCHANGE) in {"XNYS", "XPAR", "XTKS", "XHKG"}
-                else 0,
+                EXCHANGE_OPTIONS,
+                index=exchange_index(get_setting(conn, "exchange", DEFAULT_EXCHANGE)),
+                format_func=lambda x: EXCHANGE_LABELS.get(x, x),
             )
         with b4:
             st.caption(

@@ -7,6 +7,31 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+EXCHANGE_SESSION_OVERRIDES: dict[str, dict[str, object]] = {
+    # Euronext Paris: séance cash standard 09:00 -> 17:30 (heure locale Paris).
+    "XPAR": {
+        "timezone": "Europe/Paris",
+        "open_hour": 9,
+        "open_minute": 0,
+        "close_hour": 17,
+        "close_minute": 30,
+    },
+    # Trade Republic (Lang & Schwarz Exchange): fenêtre étendue 07:30 -> 23:00 (Berlin).
+    "TRLS": {
+        "timezone": "Europe/Berlin",
+        "open_hour": 7,
+        "open_minute": 30,
+        "close_hour": 23,
+        "close_minute": 0,
+    },
+}
+
+EXCHANGE_CALENDAR_ALIASES: dict[str, str] = {
+    # Profil Trade Republic piloté sur un calendrier XETR (jours fériés all.),
+    # puis bornes horaires forcées via EXCHANGE_SESSION_OVERRIDES.
+    "TRLS": "XETR",
+}
+
 
 @dataclass
 class MarketData:
@@ -165,7 +190,40 @@ def _get_calendar(exchange: str):
             "Installe pandas-market-calendars pour la gestion des horaires de marché: "
             "pip install pandas-market-calendars"
         ) from exc
-    return mcal.get_calendar(exchange)
+    exchange_code = str(exchange or "").upper()
+    calendar_code = EXCHANGE_CALENDAR_ALIASES.get(exchange_code, exchange_code)
+    return mcal.get_calendar(calendar_code)
+
+
+def _to_utc_series(ts: pd.Series) -> pd.Series:
+    parsed = pd.to_datetime(ts, errors="coerce")
+    if getattr(parsed.dt, "tz", None) is None:
+        return parsed.dt.tz_localize("UTC")
+    return parsed.dt.tz_convert("UTC")
+
+
+def _apply_exchange_session_overrides(schedule: pd.DataFrame, exchange: str) -> pd.DataFrame:
+    if schedule is None or schedule.empty:
+        return schedule
+    cfg = EXCHANGE_SESSION_OVERRIDES.get(str(exchange).upper())
+    if not cfg:
+        return schedule
+
+    out = schedule.copy()
+    open_utc = _to_utc_series(out["market_open"])
+    close_utc = _to_utc_series(out["market_close"])
+    tz_local = str(cfg["timezone"])
+    open_local = open_utc.dt.tz_convert(tz_local)
+    close_local = close_utc.dt.tz_convert(tz_local)
+
+    open_anchor = open_local.dt.normalize()
+    close_anchor = close_local.dt.normalize()
+    open_fixed_local = open_anchor + pd.Timedelta(hours=int(cfg["open_hour"]), minutes=int(cfg["open_minute"]))
+    close_fixed_local = close_anchor + pd.Timedelta(hours=int(cfg["close_hour"]), minutes=int(cfg["close_minute"]))
+
+    out["market_open"] = open_fixed_local.dt.tz_convert("UTC")
+    out["market_close"] = close_fixed_local.dt.tz_convert("UTC")
+    return out
 
 
 def filter_prices_to_market_sessions(prices: pd.DataFrame, exchange: str = "XNYS") -> pd.DataFrame:
@@ -183,6 +241,7 @@ def filter_prices_to_market_sessions(prices: pd.DataFrame, exchange: str = "XNYS
     start_date = idx.min().date()
     end_date = idx.max().date()
     schedule = cal.schedule(start_date=start_date, end_date=end_date)
+    schedule = _apply_exchange_session_overrides(schedule, exchange)
     if schedule.empty:
         return prices.iloc[0:0]
 
@@ -216,10 +275,12 @@ def get_market_clock(exchange: str = "XNYS", now_utc: pd.Timestamp | None = None
         now = now.tz_convert("UTC")
 
     schedule = cal.schedule(start_date=(now - timedelta(days=7)).date(), end_date=(now + timedelta(days=7)).date())
+    schedule = _apply_exchange_session_overrides(schedule, exchange)
     if schedule.empty:
+        tz_name = str(EXCHANGE_SESSION_OVERRIDES.get(str(exchange).upper(), {}).get("timezone", str(cal.tz)))
         return MarketClock(
             exchange=exchange,
-            timezone=str(cal.tz),
+            timezone=tz_name,
             is_open=False,
             next_open_utc=None,
             next_close_utc=None,
@@ -235,9 +296,10 @@ def get_market_clock(exchange: str = "XNYS", now_utc: pd.Timestamp | None = None
     next_open = current_open if current_open is not None else (future.iloc[0]["market_open"] if not future.empty else None)
     next_close = current_close if current_close is not None else (future.iloc[0]["market_close"] if not future.empty else None)
 
+    tz_name = str(EXCHANGE_SESSION_OVERRIDES.get(str(exchange).upper(), {}).get("timezone", str(cal.tz)))
     return MarketClock(
         exchange=exchange,
-        timezone=str(cal.tz),
+        timezone=tz_name,
         is_open=not active.empty,
         next_open_utc=next_open.isoformat() if next_open is not None else None,
         next_close_utc=next_close.isoformat() if next_close is not None else None,
